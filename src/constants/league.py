@@ -14,3 +14,7 @@ LEAGUE_ID = {
 
 def get_id(league_name):
     return LEAGUE_ID.get(league_name, 0)
+
+
+def get_name(league_id):
+    return [k for k,v in LEAGUE_ID.items() if v == league_id]
