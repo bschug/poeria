@@ -138,7 +138,7 @@ class ItemDB(object):
 
         # Remove all items that have changed
         for item in items:
-            self.db.execute("DELETE FROM {} WHERE ItemId=%s AND Hash=%s".format(table),
+            self.db.execute("DELETE FROM {} WHERE ItemId=%s AND Hash<>%s".format(table),
                             (item['id'], item['stats']['Hash']))
 
         values_string = ','.join('({})'.format(self.make_item_values_sql(columns, x['stats'])) for x in items)
