@@ -1,8 +1,8 @@
 import argparse
 
-from indexer import Indexer, load_next_change_id
-from itemdb import ItemDB
-from poeapi import PoEApi
+from .indexer import Indexer, load_next_change_id
+from .itemdb import ItemDB
+from .poeapi import PoEApi
 
 
 def main(args):

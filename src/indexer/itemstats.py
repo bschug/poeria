@@ -2,7 +2,7 @@ import json
 import re
 from collections import defaultdict
 
-from item import type
+from constants import itemtype
 
 
 def parse_ring(item):
@@ -412,27 +412,27 @@ def read_range_mod(regex, item):
 
 
 PARSERS = {
-    type.RING: parse_ring,
-    type.AMULET: parse_amulet,
-    type.BODY: parse_body,
-    type.HELMET: parse_helmet,
-    type.GLOVES: parse_gloves,
-    type.BOOTS: parse_boots,
-    type.BELT: parse_belt,
-    type.SHIELD: parse_shield,
-    type.WAND: parse_wand,
-    type.STAFF: parse_staff,
-    type.DAGGER: parse_dagger,
-    type.ONE_HAND_SWORD: parse_one_hand_sword,
-    type.TWO_HAND_SWORD: parse_two_hand_sword,
-    type.ONE_HAND_AXE: parse_one_hand_axe,
-    type.TWO_HAND_AXE: parse_two_hand_axe,
-    type.ONE_HAND_MACE: parse_one_hand_mace,
-    type.TWO_HAND_MACE: parse_two_hand_mace,
-    type.BOW: parse_bow,
-    type.QUIVER: parse_quiver,
-    type.CLAW: parse_claw,
-    type.SCEPTRE: parse_sceptre,
+    itemtype.RING: parse_ring,
+    itemtype.AMULET: parse_amulet,
+    itemtype.BODY: parse_body,
+    itemtype.HELMET: parse_helmet,
+    itemtype.GLOVES: parse_gloves,
+    itemtype.BOOTS: parse_boots,
+    itemtype.BELT: parse_belt,
+    itemtype.SHIELD: parse_shield,
+    itemtype.WAND: parse_wand,
+    itemtype.STAFF: parse_staff,
+    itemtype.DAGGER: parse_dagger,
+    itemtype.ONE_HAND_SWORD: parse_one_hand_sword,
+    itemtype.TWO_HAND_SWORD: parse_two_hand_sword,
+    itemtype.ONE_HAND_AXE: parse_one_hand_axe,
+    itemtype.TWO_HAND_AXE: parse_two_hand_axe,
+    itemtype.ONE_HAND_MACE: parse_one_hand_mace,
+    itemtype.TWO_HAND_MACE: parse_two_hand_mace,
+    itemtype.BOW: parse_bow,
+    itemtype.QUIVER: parse_quiver,
+    itemtype.CLAW: parse_claw,
+    itemtype.SCEPTRE: parse_sceptre,
 }
 
 

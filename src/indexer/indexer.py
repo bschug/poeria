@@ -1,5 +1,3 @@
-from item import type as itemtype
-
 class Indexer(object):
     def __init__(self, item_db, poeapi, first_id='0'):
         self.item_db = item_db

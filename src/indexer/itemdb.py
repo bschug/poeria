@@ -1,16 +1,15 @@
 import hashlib
 from collections import defaultdict
-from itertools import groupby
 import json
 
 import psycopg2
 import re
 
-import league
-from item import stats as itemstats
-from item import rarity as itemrarity
-from item import type as itemtype
-from item import currency
+from . import itemstats
+from constants import league
+from constants import rarity
+from constants import itemtype
+from constants import currency
 
 class ItemDB(object):
     def __init__(self):
@@ -194,7 +193,7 @@ def get_price(text):
 
 def preprocess_item(item, stash_id, default_price=None):
     try:
-        if item['frameType'] != itemrarity.RARE:
+        if item['frameType'] != rarity.RARE:
             return None
 
         item['type'] = itemtype.get_item_type(item)
@@ -222,7 +221,7 @@ def is_priced_rare_item(item):
         return False
     if item['price'] is None:
         return False
-    if item['frameType'] != itemrarity.RARE:
+    if item['frameType'] != rarity.RARE:
         return False
     return True
 
