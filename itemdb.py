@@ -120,7 +120,9 @@ class ItemDB(object):
         query = """
             INSERT INTO StashContents (StashId, ItemId, ItemType, Price, Currency, AddedTime, SoldTime, SeenTime, League, Hash)
             VALUES {}
-            ON CONFLICT (ItemId) DO UPDATE SET SeenTime = current_timestamp;""".format(
+            ON CONFLICT (ItemId) DO UPDATE SET
+                (StashId, SeenTime, Price, Currency) =
+                (excluded.StashId, current_timestamp, excluded.Price, excluded.Currency);""".format(
             ",".join(values)
         )
         self.db.execute(query)

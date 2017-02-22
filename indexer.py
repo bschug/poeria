@@ -30,9 +30,21 @@ class Indexer(object):
         response = self.poeapi.public_stash_tabs(self.next_change_id)
         self.next_change_id = response['next_change_id']
         print(self.next_change_id)
+        store_next_change_id(self.next_change_id)
         return response['stashes']
 
     def process_stash(self, stash):
         self.item_db.add_items(stash['items'], stash['stash'])
 
 
+def store_next_change_id(next_change_id):
+    with open('next_change_id.txt', 'w') as fp:
+        fp.write(next_change_id)
+
+
+def load_next_change_id():
+    try:
+        with open('next_change_id.txt', 'r') as fp:
+            return fp.read()
+    except:
+        return '0'
