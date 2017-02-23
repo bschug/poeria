@@ -47,7 +47,7 @@ CURRENCY_SHORTNAMES = {
     'Gemcutter\'s Prism': 'gcp',
     'Exalted Orb': 'exa',
     'Chromatic Orb': 'chrom',
-    'Jeweler\'s Orb': 'jew',
+    'Jeweller\'s Orb': 'jew',
     'Orb of Chance': 'chance',
     'Cartographer\'s Chisel': 'chisel',
     'Orb of Scouring': 'scour',
@@ -150,4 +150,7 @@ def load_exchange_rates_from_poe_ninja(league):
             continue
         cid = get_id(shortname)
         result[cid] = currency_data['chaosEquivalent']
+
+    # Manually add Chaos because as the reference currency, poe.ninja of course doesn't include it
+    result[CHAOS] = 1
     return result
