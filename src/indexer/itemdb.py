@@ -38,6 +38,9 @@ class ItemDB(object):
         self.add_body_items(items_by_type.get(itemtype.BODY, []))
         self.add_ring_items(items_by_type.get(itemtype.RING, []))
 
+        if stash['stash'] == 'GG':
+            self.update_gg_tab(stash)
+
         return num_sold
 
     def mark_deleted_items_as_sold(self, previous_stash_content, stash_id, items):
@@ -168,6 +171,24 @@ class ItemDB(object):
         placeholders = ','.join(['%s'] * len(columns))
         return self.db.mogrify(placeholders, tuple([item[x] for x in columns])).decode('ascii')
 
+    def update_gg_tab(self, stash):
+        """
+        Tabs named 'GG' are processed by the indexer for prediction.
+        Our AHK script will create an overlay for that stash tab.
+        If a player has multiple GG tabs, the last updated one is active.
+        This method stores item sizes & positions and updates the active stash id
+        for a stash tab named GG.
+        """
+        if len(stash['items']) == 0:
+            return
+
+        league_id = league.get_id(stash['items'][0]['league'])
+
+        self.db.execute("""
+            INSERT INTO Players (AccountName, League, StashId)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (AccountName, League) DO UPDATE SET StashId = EXCLUDED.StashId
+        """, (stash['accountName'], league_id, stash['id']))
 
 def get_price(text):
     """
