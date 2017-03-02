@@ -9,11 +9,22 @@ CREATE TABLE IF NOT EXISTS StashContents (
     ItemType smallint,
     AddedTime timestamp with time zone,
     SoldTime timestamp with time zone,
-    SeenTime timestamp with time zone
+    SeenTime timestamp with time zone,
+    X smallint,
+    Y smallint,
+    W smallint,
+    H smallint
 );
 CREATE INDEX ON StashContents (StashId);
 CREATE UNIQUE INDEX ON StashContents (ItemId);
 
+
+CREATE TABLE IF NOT EXISTS Players (
+    AccountName varchar(50),
+    StashId char(64),
+    League smallint
+);
+CREATE UNIQUE INDEX ON Players (AccountName, League);
 
 CREATE TABLE IF NOT EXISTS BodyItems (
     ItemId char(64),
