@@ -1,42 +1,314 @@
 import json
 import re
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from constants import itemtype
 
 
+class Affix(object):
+    """
+    A set of method generators to parse values from a single property description.
+    """
+    @staticmethod
+    def text(text):
+        """
+        Return 1 if the text matches exactly, otherwise 0.
+        """
+        return lambda x: 1 if x == text else 0
+
+    @staticmethod
+    def int(expr):
+        """
+        Returns the value of the first match group of the regex, or 0.
+        """
+        return lambda x: int(Affix._regex(expr, x, '0'))
+
+    @staticmethod
+    def float(expr):
+        """
+        Returns the value of the first match group of the regex, or 0.
+        """
+        return lambda x: float(Affix._regex(expr, x, '0'))
+
+    @staticmethod
+    def _regex(expr, mod_text, default_value):
+        match = re.match(expr, mod_text)
+        return default_value if match is None else match.group(1)
+
+    @staticmethod
+    def range(expr):
+        """
+        For mods that specify a range (e.g. Adds 3-9 Physical Damage to Attacks),
+        this returns the sum of the upper and lower bound of the range (i.e. twice
+        the average). We don't return the average because we work with integers and
+        can't have halves.
+        :param expr: regular expression with two match groups
+        """
+        return lambda x: Affix._range(expr, x)
+
+    @staticmethod
+    def _range(expr, mod_text):
+        match = re.match(expr, mod_text)
+        return 0 if match is None else int(match.group(1)) + int(match.group(2))
+
+    @staticmethod
+    def granted_skill_id():
+        """Returns skill id (see SKILLS) of granted skill, or 0."""
+        return lambda x: Affix._granted_skill(x)[0]
+
+    @staticmethod
+    def granted_skill_level():
+        """Returns level of granted skill, or 0."""
+        return lambda x: Affix._granted_skill(x)[1]
+
+    @staticmethod
+    def _granted_skill(mod_text):
+        match = re.match('Grants level (\d+) ([a-zA-Z]+) Skill', mod_text)
+        if match is None:
+            return (0, 0)
+
+        return get_skill_id(match.group(2)), int(match.group(1))
+
+
+class AffixCombine(object):
+    """
+    Method generators for combining stats with each other.
+    """
+    @staticmethod
+    def restrict_to_one(affix_id):
+        """
+        For affixes that can't be combined. Will raise an error if the same appears more
+        than once.
+        """
+        return lambda x, y: AffixCombine._restrict_to_one(x, y, affix_id)
+
+    @staticmethod
+    def _restrict_to_one(old, new, affix_id):
+        if old is 0:
+            return new
+        if new is 0:
+            return old
+        raise Exception('Cannot have more than one {} on the same item'.format(affix_id))
+
+    @staticmethod
+    def scale(factor):
+        """
+        Scales new values by the given factor before adding them to the old one.
+        This is useful for non-integer attributes like life leech, to bring them into
+        integer range.
+        """
+        return lambda old, new: old + int(factor * new)
+
+    @staticmethod
+    def boolean_or():
+        """
+        For boolean fields, the parser returns 0 or 1, but the dictionary must store
+        true or false. This interprets 0 and 1 as False and True and aggregates with
+        a boolean OR operation.
+        """
+        return lambda old, new: old or (new == 1)
+
+
+def parse_implicit_mods(item, item_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+    if 'implicitMods' not in item:
+        return
+    parse_mods(item['implicitMods'], item_type, 'implicit', stats, parsers,
+               ignored=ignored, banned=banned, aggregators=aggregators)
+
+
+def parse_explicit_mods(item, item_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+    if 'explicitMods' not in item:
+        return
+    parse_mods(item['explicitMods'], item_type, 'explicit', stats, parsers,
+               ignored=ignored, banned=banned, aggregators=aggregators)
+
+
+def parse_mods(mods, item_type, mod_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+    """
+    Parses the mods in the list.
+    Each mod must be covered either by one of the rules in the parsed list or
+    in the ignored list. Otherwise an exception will be thrown.
+    If any of the mods matches anything in the banned list, an exception will also be thrown.
+
+    Parser functions always take a mod text as input. They return None if the text doesn't
+    match their rules, or a value if they could parse something.
+
+    Multiple parser methods can match the same mod. In that case, all of them will be
+    executed and their results added together (unless another aggregation rule is defined).
+
+    Aggregators always take and old value and a new values as input and return an
+    aggregation of both. If no special aggregator is defined, the operator + is used
+    by default.
+
+    :param item:    Item to be parsed (dict, as parsed from poe api json)
+    :param stats:   Stats parsed so far (dict of stat id -> value)
+    :param parsed:  List of tuples (stat id, parser function)
+    :param ignored: List of regular expressions for mods we consciously ignore (optional)
+    :param banned:  List of regular expressions for mods we don't want in the data set.
+    :param aggregators: List of aggregator functions
+    """
+    if banned is not None:
+        banned = [re.compile(x) for x in banned]
+    if ignored is not None:
+        ignored = [re.compile(x) for x in ignored]
+
+    for mod_text in mods:
+        # If this mod matches any of the banned rules, throw an exception
+        if banned is not None and any(x.match(mod_text) is not None for x in banned):
+            raise ItemBannedException(item_type, mod_text)
+
+        # If this mod matches any of the ignore rules, skip it
+        if ignored is not None and any(x.match(mod_text) is not None for x in ignored):
+            continue
+
+        num_matches = 0
+
+        # Run all parsers
+        for stat_id, parser in parsers:
+            value = parser(mod_text)
+
+            # If parser returned 0, ignore
+            if value == 0:
+                continue
+
+            # Count number of matching parsers to see if we recognized this mod
+            num_matches += 1
+
+            # Aggregate new value
+            old_value = stats.get(stat_id, 0)
+            if aggregators is not None and stat_id in aggregators:
+                new_value = aggregators[stat_id](old_value, value)
+            else:
+                new_value = old_value + value
+
+            stats[stat_id] = new_value
+
+        # Raise an exception if we have no idea what this mod is about
+        if num_matches == 0:
+            raise ItemParserException("Couldn't parse {} {} mod: {}".format(
+                mod_type, item_type, mod_text))
+
+
 def parse_ring(item):
     try:
-        stats = dict()
+        stats = Counter()
+        stats['DoubledInBreach'] = False
         parse_corrupted(item, stats)
         parse_sockets(item, stats)
         parse_requirements(item, stats)
-        parse_doubled_in_breach(item, stats)
-        parse_flat_defense_bonus(item, stats)
-        parse_attribute_bonus(item, stats)
-        parse_life(item, stats)
-        parse_mana(item, stats)
-        parse_energy_shield(item, stats)
-        parse_resists(item, stats)
-        parse_accuracy(item, stats)
-        parse_added_attack_damage(item, stats)
-        parse_increased_ele_damage(item, stats)
-        parse_increased_weapon_ele_damage(item, stats)
-        parse_increased_global_crit_chance(item, stats)
-        parse_item_rarity(item, stats)
-        parse_leech(item, stats)
-        parse_attack_speed(item, stats)
-        parse_cast_speed(item, stats)
-        parse_gain_on_hit_kill(item, stats)
-        parse_light_radius(item, stats)
-        parse_life_regen(item, stats)
-        parse_mana_regen(item, stats)
-        parse_avoid_elemental_status_effect(item, stats)
-        parse_granted_skill(item, stats)
-        parse_damage_to_mana(item, stats)
+        parse_implicit_mods(
+            item, 'Ring', stats,
+            parsers=[
+                ('DoubledInBreach', Affix.text('Properties are doubled while in a Breach')),
+                ('Life', Affix.int('\+(\d+) to maximum Life')),
+                ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
+                ('Mana', Affix.int('\+(\d+) to maximum Mana')),
+                ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
+                ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
+                ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
+                ('FireResist', Affix.int('\+(\d+)% to Fire and Cold Resistances')),
+                ('ColdResist', Affix.int('\+(\d+)% to Fire and Cold Resistances')),
+                ('FireResist', Affix.int('\+(\d+)% to Fire and Lightning Resistances')),
+                ('LightningResist', Affix.int('\+(\d+)% to Fire and Lightning Resistances')),
+                ('ColdResist', Affix.int('\+(\d+)% to Cold and Lightning Resistances')),
+                ('LightningResist', Affix.int('\+(\d+)% to Cold and Lightning Resistances')),
+                ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('CritChance', Affix.int('(\d+)% increased Global Critical Strike Chance')),
+                ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
+                ('EnergyShield', Affix.int('\+(\d+) to maximum Energy Shield')),
+                ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
+                ('IncreasedEleDamage', Affix.int('(\d+)% increased Elemental Damage')),
+                # Corrupted Implicits
+                ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
+                ('ChaosAttackDamage', Affix.range('Adds (\d+) to (\d+) Chaos Damage to Attacks')),
+                ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
+                ('DamageToMana', Affix.int('(\d+)% of Damage taken gained as Mana when Hit')),
+                ('AvoidFreeze', Affix.int('(\d+)% chance to Avoid being Frozen')),
+                ('GrantedSkillId', Affix.granted_skill_id()),
+                ('GrantedSkillLevel', Affix.granted_skill_level()),
+                ('ManaGainOnHit', Affix.int('\+(\d+) Mana gained for each Enemy hit by your Attacks'))
+            ],
+            ignored=[
+                'Has 1 Socket'
+            ],
+            aggregators={
+                'DoubledInBreach': AffixCombine.boolean_or(),
+                'GrantedSkill': AffixCombine.restrict_to_one('GrantedSkill')
+            }
+        )
+        parse_explicit_mods(
+            item, 'Ring', stats,
+            parsers=[
+                # Prefix
+                ('AddedColdAttackDamage', Affix.range('Adds (\d+) to (\d+) Cold Damage to Attacks')),
+                ('AddedFireAttackDamage', Affix.range('Adds (\d+) to (\d+) Fire Damage to Attacks')),
+                ('AddedLightningAttackDamage', Affix.range('Adds (\d+) to (\d+) Lightning Damage to Attacks')),
+                ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
+                ('EnergyShield', Affix.int('\+(\d+) to maximum Energy Shield')),
+                ('Evasion', Affix.int('\+(\d+) to Evasion Rating')),
+                ('Life', Affix.int('\+(\d+) to maximum Life')),
+                ('Mana', Affix.int('\+(\d+) to maximum Mana')),
+                ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
+                ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
+                ('LifeLeech', Affix.float('(\d+[\.\d+]*)% of Physical Attack Damage Leeched as Life')),
+                ('ManaLeech', Affix.float('(\d+[\.\d+]*)% of Physical Attack Damage Leeched as Mana')),
+                # Suffix
+                ('Strength', Affix.int('\+(\d+) to all Attributes')),
+                ('Dexterity', Affix.int('\+(\d+) to all Attributes')),
+                ('Intelligence', Affix.int('\+(\d+) to all Attributes')),
+                ('Strength', Affix.int('\+(\d+) to Strength')),
+                ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
+                ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
+                ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
+                ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
+                ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
+                ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+                ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
+                ('IncreasedFireDamage', Affix.int('(\d+)% increased Fire Damage')),
+                ('IncreasedColdDamage', Affix.int('(\d+)% increased Cold Damage')),
+                ('IncreasedLightningDamage', Affix.int('(\d+)% increased Lightning Damage')),
+                ('Accuracy', Affix.int('\+(\d+) to Accuracy Rating')),
+                ('AttackSpeed', Affix.int('(\d+)% increased Attack Speed')),
+                ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
+                ('LifeGainOnHit', Affix.int('\+(\d+) Life gained for each Enemy hit by your Attacks')),
+                ('LifeGainOnKill', Affix.int('\+(\d+) Life gained on Kill')),
+                ('LifeRegen', Affix.float('(\d+[\.\d]*) Life Regenerated per second')),
+                ('LightRadius', Affix.int('(\d+)% increased Light Radius')),
+                ('IncreasedAccuracy', Affix.int('(\d+)% increased Accuracy Rating')),
+                ('ManaGainOnKill', Affix.int('\+(\d+) Mana gained on Kill')),
+                ('ManaRegen', Affix.int('(\d+)% increased Mana Regeneration Rate')),
+            ],
+            banned=[
+                # Master signature mods:
+                '\-(\d+) to Mana Cost of Skills',
+                '(\d+)% increased Damage',
+                # Essence only:
+                '(\d+)% increased Chaos Damage',
+                '\+(\d+)% to Global Critical Strike Multiplier',
+                '(\d+)% increased Global Critical Strike Chance',
+                '(\d+)% increased Quantity of Items found',
+                'Gain (\d+)% of Physical Damage as Extra Fire Damage',
+                'Minions have (\d+)% increased Movement Speed'
+            ],
+            aggregators={
+                'LifeLeech': AffixCombine.scale(100),
+                'ManaLeech': AffixCombine.scale(100),
+                'LifeRegen': AffixCombine.scale(10),
+            }
+        )
         return stats
+
+    # Don't catch exceptions that we raised on purpose
+    except ItemParserException:
+        raise
+
+    # If anything unintended goes wrong, log the item json for debugging
     except:
-        print("Exception while parsing body item ", json.dumps(item))
+        print("Exception while parsing ring item ", json.dumps(item))
         raise
 
 def parse_amulet(item):
@@ -453,3 +725,16 @@ SKILLS = {
 
 def get_skill_id(name):
     return SKILLS[name]
+
+
+class ItemParserException(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+        Exception.__init__(self, msg)
+
+
+class ItemBannedException(ItemParserException):
+    def __init__(self, item_type, mod_text):
+        self.item_type = item_type
+        self.mod_text = mod_text
+        ItemParserException.__init__(self, mod_text)

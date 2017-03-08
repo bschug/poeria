@@ -3,8 +3,10 @@ from collections import defaultdict
 import json
 
 import psycopg2
+from psycopg2.extras import Json
 import re
 
+from indexer.itemstats import ItemBannedException, ItemParserException
 from . import itemstats
 from constants import league
 from constants import rarity
@@ -37,9 +39,6 @@ class ItemDB(object):
 
         self.add_body_items(items_by_type.get(itemtype.BODY, []))
         self.add_ring_items(items_by_type.get(itemtype.RING, []))
-
-        if stash['stash'] == 'GG':
-            self.update_gg_tab(stash)
 
         return num_sold
 
@@ -171,7 +170,7 @@ class ItemDB(object):
         placeholders = ','.join(['%s'] * len(columns))
         return self.db.mogrify(placeholders, tuple([item[x] for x in columns])).decode('ascii')
 
-    def update_gg_tab(self, stash):
+    def update_gg_tab(self, stash, predictions):
         """
         Tabs named 'GG' are processed by the indexer for prediction.
         Our AHK script will create an overlay for that stash tab.
@@ -183,12 +182,13 @@ class ItemDB(object):
             return
 
         league_id = league.get_id(stash['items'][0]['league'])
+        print("Updating GG Tab of", stash['accountName'])
 
         self.db.execute("""
-            INSERT INTO Players (AccountName, League, StashId)
+            INSERT INTO Players (AccountName, League, Predictions)
             VALUES (%s, %s, %s)
-            ON CONFLICT (AccountName, League) DO UPDATE SET StashId = EXCLUDED.StashId
-        """, (stash['accountName'], league_id, stash['id']))
+            ON CONFLICT (AccountName, League) DO UPDATE SET Predictions = EXCLUDED.Predictions
+        """, (stash['accountName'], league_id, Json(predictions)))
 
 def get_price(text):
     """
@@ -231,6 +231,13 @@ def preprocess_item(item, stash_id, default_price=None):
         item['stats']['ItemId'] = item['id']
         item['stats']['Hash'] = hash_item(item['stats'])
         return item
+
+    except ItemBannedException as ex:
+        #print("Skipping {ex.item_type} with {ex.mod_text}".format(ex=ex))
+        pass
+
+    except ItemParserException as ex:
+        print(ex.msg)
 
     except Exception as ex:
         print("Exception while preprocessing item: ", json.dumps(item))
