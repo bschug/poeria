@@ -2,6 +2,7 @@ import time
 from simplejson import JSONDecodeError
 
 import requests
+import requests.exceptions
 
 
 class PoEApi(object):
@@ -20,7 +21,7 @@ class PoEApi(object):
                 response = req.json()
                 assert 'next_change_id' in response, "Invalid Response: " + req.text
                 return response
-            except requests.RequestException:
+            except requests.exceptions.Timeout:
                 print("Connection timed out, trying again.")
             except AssertionError:
                 print("Invalid Response, trying again")
