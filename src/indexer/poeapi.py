@@ -23,6 +23,10 @@ class PoEApi(object):
                 return response
             except requests.exceptions.Timeout:
                 print("Connection timed out, trying again.")
+                time.sleep(2)
+            except requests.ConnectionError as ex:
+                print("Connection error:", str(ex))
+                time.sleep(5)
             except AssertionError:
                 print("Invalid Response, trying again")
             except JSONDecodeError as ex:
