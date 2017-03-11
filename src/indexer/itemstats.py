@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 from constants import itemtype
 
 
-class Affix(object):
+class AffixParse(object):
     """
     A set of method generators to parse values from a single property description.
     """
@@ -21,14 +21,14 @@ class Affix(object):
         """
         Returns the value of the first match group of the regex, or 0.
         """
-        return lambda x: int(Affix._regex(expr, x, '0'))
+        return lambda x: int(AffixParse._regex(expr, x, '0'))
 
     @staticmethod
-    def float(expr):
+    def float(scale, expr):
         """
         Returns the value of the first match group of the regex, or 0.
         """
-        return lambda x: float(Affix._regex(expr, x, '0'))
+        return lambda x: int(scale * float(AffixParse._regex(expr, x, '0')))
 
     @staticmethod
     def _regex(expr, mod_text, default_value):
@@ -48,7 +48,7 @@ class Affix(object):
         can't have halves.
         :param expr: regular expression with two match groups
         """
-        return lambda x: Affix._range(expr, x)
+        return lambda x: AffixParse._range(expr, x)
 
     @staticmethod
     def _range(expr, mod_text):
@@ -58,12 +58,12 @@ class Affix(object):
     @staticmethod
     def granted_skill_id():
         """Returns skill id (see SKILLS) of granted skill, or 0."""
-        return lambda x: Affix._granted_skill(x)[0]
+        return lambda x: AffixParse._granted_skill(x)[0]
 
     @staticmethod
     def granted_skill_level():
         """Returns level of granted skill, or 0."""
-        return lambda x: Affix._granted_skill(x)[1]
+        return lambda x: AffixParse._granted_skill(x)[1]
 
     @staticmethod
     def _granted_skill(mod_text):
@@ -95,15 +95,6 @@ class AffixCombine(object):
         raise Exception('Cannot have more than one {} on the same item'.format(affix_id))
 
     @staticmethod
-    def scale(factor):
-        """
-        Scales new values by the given factor before adding them to the old one.
-        This is useful for non-integer attributes like life leech, to bring them into
-        integer range.
-        """
-        return lambda old, new: old + int(factor * new)
-
-    @staticmethod
     def boolean_or():
         """
         For boolean fields, the parser returns 0 or 1, but the dictionary must store
@@ -113,21 +104,180 @@ class AffixCombine(object):
         return lambda old, new: old or (new == 1)
 
 
-def parse_implicit_mods(item, item_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+class AffixParser(object):
+    def __init__(self, stat_ids, parse, aggregate=None):
+        """
+        Base class for affix parsers. An affix parser consist of a parser function,
+        a list of stat ids and an aggregator. The parser function receives a mod
+        description as input and returns 0 if it doesn't match, or the value if it does.
+
+        Items can have more than one mod affecting the same stat (e.g. implicit and
+        explicit), so multiple sources must be combined. By default, they are simply
+        summed up. If that doesn't work, an aggregator can define specific rules.
+
+        :param stat_ids:    Single stat id string or iterable of multiple stat ids
+        :param parse:       Parser function: mod text -> value | 0
+        :param aggregate:   Aggregator function: old, new -> combined
+        """
+        # Allow single stat id passed directly, convert to tuple internally
+        self.stat_ids = (stat_ids,) if stat_ids is str else stat_ids
+        self.parse = parse
+        self.aggregator = aggregate
+
+    def aggregate(self, old_value, new_value):
+        if self.aggregator is None:
+            return old_value + new_value
+        else:
+            return self.aggregator(old_value, new_value)
+
+
+
+class IntAffix(AffixParser):
+    def __init__(self, stat_ids, regex):
+        super().__init__(stat_ids, AffixParse.int(regex), None)
+
+
+class FloatAffix(AffixParser):
+    def __init__(self, stat_ids, regex, scale):
+        super().__init__(stat_ids, AffixParse.float(scale, regex), None)
+
+
+class BoolAffix(AffixParser):
+    def __init__(self, stat_ids, regex):
+        super().__init__(stat_ids, AffixParse.text(regex), AffixCombine.boolean_or())
+
+
+class RangeAffix(AffixParser):
+    def __init__(self, stat_ids, regex):
+        super().__init__(stat_ids, AffixParse.range(regex), None)
+
+
+class Affix(object):
+    Accuracy = IntAffix('Accuracy', '\+(\d+) to Accuracy Rating')
+    AddedChaosAttackDamage = RangeAffix('AddedChaosAttackDamage', 'Adds (\d+) to (\d+) Chaos Damage to Attacks')
+    AddedColdAttackDamage = RangeAffix('AddedColdAttackDamage', 'Adds (\d+) to (\d+) Cold Damage to Attacks')
+    AddedFireAttackDamage = RangeAffix('AddedFireAttackDamage', 'Adds (\d+) to (\d+) Fire Damage to Attacks')
+    AddedLightningAttackDamage = RangeAffix('AddedLightningAttackDamage', 'Adds (\d+) to (\d+) Lightning Damage to Attacks')
+    AddedPhysAttackDamage = RangeAffix('AddedPhysAttackDamage', 'Adds (\d+) to (\d+) Physical Damage to Attacks')
+    AdditionalCurses = IntAffix('AdditionalCurses', 'Enemies can have (\d) additional Curse[s]?')
+    AdditionalTraps = IntAffix('AdditionalTraps', 'Can have up to (\d+) additional Trap(s)? placed at a time')
+    AllAttributes = IntAffix(('Strength','Dexterity','Intelligence'), '\+(\d+) to all Attributes')
+    AllElementalResists = IntAffix(('FireResist', 'ColdResist', 'LightningResist'), '\+(\d+)% to all Elemental Resistances')
+    Armour = IntAffix('Armour', '\+(\d+) to Armour')
+    ArmourAndEvasion = IntAffix(('Armour','Evasion'), '\+(\d+) to Armour and Evasion Rating')
+    AttackSpeed = IntAffix('AttackSpeed', '(\d+)% increased Attack Speed')
+    AvoidIgnite = IntAffix('AvoidIgnite', '(\d+)% chance to Avoid being Ignited')
+    AvoidFreeze = IntAffix('AvoidFreeze', '(\d+)% chance to Avoid being Frozen')
+    AvoidShock = IntAffix('AvoidShock', '(\d+)% chance to Avoid being Shocked')
+    BlockChance = IntAffix('BlockChance', '(\d+)% Chance to Block')
+    BlockRecovery = IntAffix('BlockRecovery', '(\d+)% increased Block Recovery')
+    CannotBeKnockedBack = BoolAffix('CannotBeKnockedBack', 'Cannot be Knocked Back')
+    ChaosResist = IntAffix('ChaosResist', '\+(\d+)% to Chaos Resistance')
+    CastSpeed = IntAffix('CastSpeed', '(\d+)% increased Cast Speed')
+    ColdAndLightningResist = IntAffix(('ColdResist','LightningResist'), '\+(\d+)% to Cold and Lightning Resistances')
+    ColdResist = IntAffix('ColdResist', '\+(\d+)% to Cold Resistance')
+    DamageToMana = IntAffix('DamageToMana', '(\d+)% of Damage taken gained as Mana when Hit')
+    Dexterity = IntAffix('Dexterity', '\+(\d+) to Dexterity')
+    DexterityAndIntelligence = IntAffix(('Dexterity','Intelligence'), '\+(\d+) to Dexterity and Intelligence')
+    DodgeAttacks = IntAffix('DodgeAttacks', '(\d+)% chance to Dodge Attacks')
+    DoubledInBreach = BoolAffix('DoubledInBreach', 'Properties are doubled while in a Breach')
+    EleWeaknessOnHit = IntAffix('EleWeaknessOnHit', 'Curse Enemies with level (\d+) Elemental Weakness on Hit')
+    EnemiesCannotLeech = BoolAffix('EnemiesCannotLeech', 'Enemies Cannot Leech Life From You')
+    EnergyShield = IntAffix('EnergyShield', '\+(\d+) to maximum Energy Shield')
+    Evasion = IntAffix('Evasion', '\+(\d+) to Evasion Rating')
+    FireAndColdResist = IntAffix(('FireResist', 'ColdResist'), '\+(\d+)% to Fire and Cold Resistances')
+    FireAndLightningResist = IntAffix(('FireResist', 'LightningResist'), '\+(\d+)% to Fire and Lightning Resistances')
+    FireResist = IntAffix('FireResist', '\+(\d+)% to Fire Resistance')
+    FlaskChargeGain = IntAffix('FlaskChargeGain', '(\d+)% increased Flask Charges gained')
+    FlaskChargeUse = IntAffix('FlaskChargeUse', '(\d+)% reduced Flask Charges used')
+    FlaskDuration = IntAffix('FlaskDuration', '(\d+)% increased Flask effect duration')
+    FlaskLife = IntAffix('FlaskLife', '(\d+)% increased Flask Life Recovery rate')
+    FlaskMana = IntAffix('FlaskMana', '(\d+)% increased Flask Mana Recovery rate')
+    GlobalCritChance = IntAffix('GlobalCritChance', '(\d+)% increased Global Critical Strike Chance')
+    GlobalCritMulti = IntAffix('CritMulti', '\+(\d+)% to Global Critical Strike Multiplier')
+    GrantedSkillId = AffixParser(('GrantedSkillId',), AffixParse.granted_skill_id(), AffixCombine.restrict_to_one('GrantedSkill'))
+    GrantedSkillLevel = AffixParser(('GrantedSkillLevel',), AffixParse.granted_skill_level(), AffixCombine.restrict_to_one('GrantedSkill'))
+    IncreasedAccuracy = IntAffix('IncreasedAccuracy', '(\d+)% increased Accuracy Rating')
+    IncreasedAoE = IntAffix('IncreasedAoE', '(\d+)% increased Area of Effect of Area Skills')
+    IncreasedArmour = IntAffix('IncreasedArmour', '(\d+)% increased Armour')
+    IncreasedEleDamage = IntAffix('IncreasedEleDamage', '(\d+)% increased Elemental Damage')
+    IncreasedEnergyShield = IntAffix('IncreasedEnergyShield', '(\d+)% increased maximum Energy Shield')
+    IncreasedEvasion = IntAffix('IncreasedEvasion', '(\d+)% increased Evasion Rating')
+    IncreasedFireDamage = IntAffix('IncreasedFireDamage', '(\d+)% increased Fire Damage')
+    IncreasedColdDamage = IntAffix('IncreasedColdDamage', '(\d+)% increased Cold Damage')
+    IncreasedLifeRegen = FloatAffix('IncreasedLifeRegen', '(\d+(\.\d+)?)% of Life Regenerated per second', 10)
+    IncreasedLightningDamage = IntAffix('IncreasedLightningDamage', '(\d+)% increased Lightning Damage')
+    IncreasedPhysDamage = IntAffix('IncreasedPhysDamage', '(\d+)% increased Physical Damage')
+    IncreasedWeaponEleDamage = IntAffix('IncreasedWeaponEleDamage', '(\d+)% increased Elemental Damage with Weapons')
+    Intelligence = IntAffix('Intelligence', '\+(\d+) to Intelligence')
+    ItemRarity = IntAffix('ItemRarity', '(\d+)% increased Rarity of Items found')
+    Life = IntAffix('Life', '\+(\d+) to maximum Life')
+    LifeLeech = FloatAffix('LifeLeech', '(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Life', 100)
+    LifeLeechCold = FloatAffix('LifeLeechCold', '(\d(\.\d+)?)% of Cold Damage Leeched as Life', 100)
+    LifeLeechLightning = FloatAffix('LifeLeechLightning', '(\d(\.\d+)?)% of Lightning Damage Leeched as Life', 100)
+    LifeLeechFire = FloatAffix('LifeLeechFire', '(\d(\.\d+)?)% of Fire Damage Leeched as Life', 100)
+    LifeGainOnHit = IntAffix('LifeGainOnHit', '\+(\d+) Life gained for each Enemy hit by your Attacks')
+    LifeGainOnKill = IntAffix('LifeGainOnKill', '\+(\d+) Life gained on Kill')
+    LifeRegen = FloatAffix('LifeRegen', '(\d+(\.\d)?) Life Regenerated per second', 10)
+    LightningResist = IntAffix('LightningResist', '\+(\d+)% to Lightning Resistance')
+    LightRadius = IntAffix('LightRadius', '(\d+)% increased Light Radius')
+    Mana = IntAffix('Mana', '\+(\d+) to maximum Mana')
+    ManaGainOnHit = IntAffix('ManaGainOnHit', '\+(\d+) Mana gained for each Enemy hit by your Attacks')
+    ManaGainOnKill = IntAffix('ManaGainOnKill', '\+(\d+) Mana gained on Kill')
+    ManaLeech = FloatAffix('ManaLeech', '(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Mana', 100)
+    ManaMultiplier = IntAffix('ManaMultiplier', 'Socketed Skill Gems get a (\d+)% Mana Multiplier')
+    ManaRegen = IntAffix('ManaRegen', '(\d+)% increased Mana Regeneration Rate')
+    ManaShield = IntAffix('ManaShield', 'When Hit, (\d+)% of Damage is taken from Mana before Life')
+    MaxEnduranceCharges = IntAffix('MaxEnduranceCharges', '\+(\d+) to Maximum Endurance Charges')
+    MaxFrenzyCharges = IntAffix('MaxFrenzyCharges', '\+(\d+) to Maximum Frenzy Charges')
+    MaxResists = IntAffix('MaxResists', '\+(\d+)% to all maximum Resistances')
+    MeleeDamage = IntAffix('MeleeDamage', '(\d+)% increased Melee Damage')
+    MinionDamage = IntAffix('MinionDamage', 'Minions deal (\d+)% increased Damage')
+    MoveSpeed = IntAffix('MoveSpeed', '(\d+)% increased Movement Speed')
+    PhysDamageReduction = IntAffix('PhysDamageReduction', '\-(\d+) Physical Damage taken from Attacks')
+    PhysReflect = IntAffix('PhysReflect', 'Reflects (\d+) Physical Damage to Melee Attackers')
+    ProjectileAttackDamage = IntAffix('ProjectileAttackDamage', '(\d+)% increased Projectile Attack Damage')
+    SkillDuration = IntAffix('SkillDuration', '(\d+)% increased Skill Effect Duration')
+    SocketedChaosGemLevel = IntAffix('SocketedChaosGemLevel', '\+(\d+) to Level of Socketed Chaos Gems')
+    SocketedColdGemLevel = IntAffix('SocketedColdGemLevel', '\+(\d+) to Level of Socketed Cold Gems')
+    SocketedFireGemLevel = IntAffix('SocketedFireGemLevel', '\+(\d+) to Level of Socketed Fire Gems')
+    SocketedGemLevel = IntAffix('SocketedGemLevel', '\+(\d+) to Level of Socketed Gems')
+    SocketedLightningGemLevel = IntAffix('SocketedLightningGemLevel', '\+(\d+) to Level of Socketed Lightning Gems')
+    SocketedMeleeGemLevel = IntAffix('SocketedMeleeGemLevel', '\+(\d+) to Level of Socketed Melee Gems')
+    SocketedMinionGemLevel = IntAffix('SocketedMinionGemLevel', '\+(\d+) to Level of Socketed Minion Gems')
+    SocketedVaalGemLevel = IntAffix('SocketedVaalGemLevel', '\+(\d+) to Level of Socketed Vaal Gems')
+    SpellBlock = IntAffix('SpellBlock', '(\d+)% Chance to Block Spells')
+    SpellCrit = IntAffix('SpellCrit', '(\d+)% increased Critical Strike Chance for Spells')
+    SpellDamage = IntAffix('SpellDamage', '(\d+)% increased Spell Damage')
+    Strength = IntAffix('Strength', '\+(\d+) to Strength')
+    StrengthAndDexterity = IntAffix(('Strength','Dexterity'), '\+(\d+) to Strength and Dexterity')
+    StrengthAndIntelligence = IntAffix(('Strength','Intelligence'), '\+(\d+) to Strength and Intelligence')
+    StunDuration = IntAffix('StunDuration', '(\d+)% increased Stun Duration on Enemies')
+    StunRecovery = IntAffix('StunRecovery', '(\d+)% increased Stun and Block Recovery')
+    StunThreshold = IntAffix('StunThreshold', '(\d+)% reduced Enemy Stun Threshold')
+    SupportedByCastOnCrit = IntAffix('SupportedByCastOnCrit', 'Socketed Gems are supported by level (\d+) Cast On Crit')
+    SupportedByCastOnStun = IntAffix('SupportedByCastOnStun', 'Socketed Gems are supported by level (\d+) Cast when Stunned')
+    TempChainsOnHit = IntAffix('TempChainsOnHit', 'Curse Enemies with level (\d+) Temporal Chains on Hit')
+    VulnerabilityOnHit = IntAffix('VulnerabilityOnHit', 'Curse Enemies with level (\d+) Vulnerability on Hit')
+
+
+
+
+def parse_implicit_mods(item, item_type, stats, parsers, ignored=None, banned=None):
     if 'implicitMods' not in item:
         return
     parse_mods(item['implicitMods'], item_type, 'implicit', stats, parsers,
-               ignored=ignored, banned=banned, aggregators=aggregators)
+               ignored=ignored, banned=banned)
 
 
-def parse_explicit_mods(item, item_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+def parse_explicit_mods(item, item_type, stats, parsers, ignored=None, banned=None):
     if 'explicitMods' not in item:
         return
     parse_mods(item['explicitMods'], item_type, 'explicit', stats, parsers,
-               ignored=ignored, banned=banned, aggregators=aggregators)
+               ignored=ignored, banned=banned)
 
 
-def parse_mods(mods, item_type, mod_type, stats, parsers, ignored=None, banned=None, aggregators=None):
+def parse_mods(mods, item_type, mod_type, stats, affix_parsers, ignored=None, banned=None):
     """
     Parses the mods in the list.
     Each mod must be covered either by one of the rules in the parsed list or
@@ -149,7 +299,6 @@ def parse_mods(mods, item_type, mod_type, stats, parsers, ignored=None, banned=N
     :param parsed:  List of tuples (stat id, parser function)
     :param ignored: List of regular expressions for mods we consciously ignore (optional)
     :param banned:  List of regular expressions for mods we don't want in the data set.
-    :param aggregators: List of aggregator functions
     """
     if banned is not None:
         banned = [re.compile(x) for x in banned]
@@ -168,8 +317,8 @@ def parse_mods(mods, item_type, mod_type, stats, parsers, ignored=None, banned=N
         num_matches = 0
 
         # Run all parsers
-        for stat_id, parser in parsers:
-            value = parser(mod_text)
+        for affix in affix_parsers:
+            value = affix.parse(mod_text)
 
             # If parser returned 0, ignore
             if value == 0:
@@ -178,14 +327,9 @@ def parse_mods(mods, item_type, mod_type, stats, parsers, ignored=None, banned=N
             # Count number of matching parsers to see if we recognized this mod
             num_matches += 1
 
-            # Aggregate new value
-            old_value = stats.get(stat_id, 0)
-            if aggregators is not None and stat_id in aggregators:
-                new_value = aggregators[stat_id](old_value, value)
-            else:
-                new_value = old_value + value
-
-            stats[stat_id] = new_value
+            for stat_id in affix.stat_ids:
+                old_value = stats.get(stat_id, 0)
+                stats[stat_id] = affix.aggregate(old_value, value)
 
         # Raise an exception if we have no idea what this mod is about
         if num_matches == 0:
@@ -202,90 +346,76 @@ def parse_ring(item):
     parse_implicit_mods(
         item, 'Ring', stats,
         parsers=[
-            ('DoubledInBreach', Affix.text('Properties are doubled while in a Breach')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire and Cold Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to Fire and Cold Resistances')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire and Lightning Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to Fire and Lightning Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold and Lightning Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to Cold and Lightning Resistances')),
-            ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('CritChance', Affix.int('(\d+)% increased Global Critical Strike Chance')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
-            ('EnergyShield', Affix.int('\+(\d+) to maximum Energy Shield')),
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('IncreasedEleDamage', Affix.int('(\d+)% increased Elemental Damage')),
+            Affix.DoubledInBreach,
+            Affix.Life,
+            Affix.AddedPhysAttackDamage,
+            Affix.Mana,
+            Affix.FireResist,
+            Affix.ColdResist,
+            Affix.LightningResist,
+            Affix.FireAndColdResist,
+            Affix.FireAndLightningResist,
+            Affix.ColdAndLightningResist,
+            Affix.AllElementalResists,
+            Affix.GlobalCritChance,
+            Affix.ItemRarity,
+            Affix.EnergyShield,
+            Affix.ChaosResist,
+            Affix.IncreasedEleDamage,
             # Corrupted Implicits
-            ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
-            ('AddedChaosAttackDamage', Affix.range('Adds (\d+) to (\d+) Chaos Damage to Attacks')),
-            ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
-            ('DamageToMana', Affix.int('(\d+)% of Damage taken gained as Mana when Hit')),
-            ('AvoidFreeze', Affix.int('(\d+)% chance to Avoid being Frozen')),
-            ('GrantedSkillId', Affix.granted_skill_id()),
-            ('GrantedSkillLevel', Affix.granted_skill_level()),
-            ('ManaGainOnHit', Affix.int('\+(\d+) Mana gained for each Enemy hit by your Attacks'))
+            Affix.CastSpeed,
+            Affix.AddedChaosAttackDamage,
+            Affix.IncreasedWeaponEleDamage,
+            Affix.DamageToMana,
+            Affix.AvoidFreeze,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.ManaGainOnHit
         ],
         ignored=[
             'Has 1 Socket'
-        ],
-        aggregators={
-            'DoubledInBreach': AffixCombine.boolean_or(),
-            'GrantedSkillId': AffixCombine.restrict_to_one('GrantedSkill'),
-            'GrantedSkillLevel': AffixCombine.restrict_to_one('GrantedSkill'),
-        }
+        ]
     )
     parse_explicit_mods(
         item, 'Ring', stats,
         parsers=[
             # Prefix
-            ('AddedColdAttackDamage', Affix.range('Adds (\d+) to (\d+) Cold Damage to Attacks')),
-            ('AddedFireAttackDamage', Affix.range('Adds (\d+) to (\d+) Fire Damage to Attacks')),
-            ('AddedLightningAttackDamage', Affix.range('Adds (\d+) to (\d+) Lightning Damage to Attacks')),
-            ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
-            ('EnergyShield', Affix.int('\+(\d+) to maximum Energy Shield')),
-            ('Evasion', Affix.int('\+(\d+) to Evasion Rating')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
-            ('LifeLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Life')),
-            ('ManaLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Mana')),
+            Affix.AddedColdAttackDamage,
+            Affix.AddedFireAttackDamage,
+            Affix.AddedLightningAttackDamage,
+            Affix.AddedPhysAttackDamage,
+            Affix.EnergyShield,
+            Affix.Evasion,
+            Affix.Life,
+            Affix.Mana,
+            Affix.IncreasedWeaponEleDamage,
+            Affix.ItemRarity,
+            Affix.LifeLeech,
+            Affix.ManaLeech,
             # Suffix
-            ('Strength', Affix.int('\+(\d+) to all Attributes')),
-            ('Dexterity', Affix.int('\+(\d+) to all Attributes')),
-            ('Intelligence', Affix.int('\+(\d+) to all Attributes')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('IncreasedFireDamage', Affix.int('(\d+)% increased Fire Damage')),
-            ('IncreasedColdDamage', Affix.int('(\d+)% increased Cold Damage')),
-            ('IncreasedLightningDamage', Affix.int('(\d+)% increased Lightning Damage')),
-            ('Accuracy', Affix.int('\+(\d+) to Accuracy Rating')),
-            ('AttackSpeed', Affix.int('(\d+)% increased Attack Speed')),
-            ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
-            ('LifeGainOnHit', Affix.int('\+(\d+) Life gained for each Enemy hit by your Attacks')),
-            ('LifeGainOnKill', Affix.int('\+(\d+) Life gained on Kill')),
-            ('LifeRegen', Affix.float('(\d+(\.\d)?) Life Regenerated per second')),
-            ('LightRadius', Affix.int('(\d+)% increased Light Radius')),
-            ('IncreasedAccuracy', Affix.int('(\d+)% increased Accuracy Rating')),
-            ('ManaGainOnKill', Affix.int('\+(\d+) Mana gained on Kill')),
-            ('ManaRegen', Affix.int('(\d+)% increased Mana Regeneration Rate')),
-            ('SocketedGemLevel', Affix.int('\+(\d+) to Level of Socketed Gems'))
+            Affix.AllAttributes,
+            Affix.Strength,
+            Affix.Dexterity,
+            Affix.Intelligence,
+            Affix.FireResist,
+            Affix.ColdResist,
+            Affix.LightningResist,
+            Affix.AllElementalResists,
+            Affix.ChaosResist,
+            Affix.IncreasedFireDamage,
+            Affix.IncreasedColdDamage,
+            Affix.IncreasedLightningDamage,
+            Affix.Accuracy,
+            Affix.AttackSpeed,
+            Affix.CastSpeed,
+            Affix.LifeGainOnHit,
+            Affix.LifeGainOnKill,
+            Affix.LifeRegen,
+            Affix.LightRadius,
+            Affix.IncreasedAccuracy,
+            Affix.ManaGainOnKill,
+            Affix.ManaRegen,
+            Affix.SocketedGemLevel
         ],
         banned=[
             # Master signature mods:
@@ -301,12 +431,7 @@ def parse_ring(item):
             '\+\d+ to Armour',
             '\d+% reduced Reflected Damage taken',
             'Adds \d+ to \d+ Cold Damage per Frenzy Charge',
-        ],
-        aggregators={
-            'LifeLeech': AffixCombine.scale(100),
-            'ManaLeech': AffixCombine.scale(100),
-            'LifeRegen': AffixCombine.scale(10),
-        }
+        ]
     )
     return stats
 
@@ -318,104 +443,81 @@ def parse_amulet(item):
     parse_implicit_mods(
         item, 'Amulet', stats,
         parsers=[
-            ('LifeRegen', Affix.float('(\d+(\.\d+)?) Life Regenerated per second')),
-            ('ManaRegen', Affix.int('(\d+)% increased Mana Regeneration Rate')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
-            ('Strength', Affix.int('\+(\d+) to Strength and Intelligence')),
-            ('Intelligence', Affix.int('\+(\d+) to Strength and Intelligence')),
-            ('Strength', Affix.int('\+(\d+) to Strength and Dexterity')),
-            ('Dexterity', Affix.int('\+(\d+) to Strength and Dexterity')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity and Intelligence')),
-            ('Intelligence', Affix.int('\+(\d+) to Dexterity and Intelligence')),
-            ('Strength', Affix.int('\+(\d+) to all Attributes')),
-            ('Dexterity', Affix.int('\+(\d+) to all Attributes')),
-            ('Intelligence', Affix.int('\+(\d+) to all Attributes')),
-            ('IncreasedLifeRegen', Affix.float('(\d+(\.\d+)?)% of Life Regenerated per second')),
-            # Corrupted Implicits
-            ('AdditionalCurses', Affix.int('Enemies can have (\d) additional Curse[s]?')),
-            ('AvoidIgnite', Affix.int('(\d+)% chance to Avoid being Ignited')),
-            ('BlockChance', Affix.int('(\d+)% Chance to Block')),
-            ('AvoidFreeze', Affix.int('(\d+)% chance to Avoid being Frozen')),
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('LifeLeechCold', Affix.float('(\d(\.\d+)?)% of Cold Damage Leeched as Life')),
-            ('LifeLeechFire', Affix.float('(\d(\.\d+)?)% of Fire Damage Leeched as Life')),
-            ('GrantedSkillId', Affix.granted_skill_id()),
-            ('GrantedSkillLevel', Affix.granted_skill_level()),
-            ('AttackSpeed', Affix.int('(\d+)% increased Attack Speed')),
-            ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
-            ('LifeLeechLightning', Affix.float('(\d(\.\d+)?)% of Lightning Damage Leeched as Life')),
-            ('MaxFrenzyCharges', Affix.int('\+(\d+) to Maximum Frenzy Charges')),
-            ('MaxResists', Affix.int('\+(\d+)% to all maximum Resistances')),
-            ('MinionDamage', Affix.int('Minions deal (\d+)% increased Damage')),
-            ('MoveSpeed', Affix.int('(\d+)% increased Movement Speed')),
-            ('DamageToMana', Affix.int('(\d+)% of Damage taken gained as Mana when Hit')),
-            ('PhysDamageReduction', Affix.int('\-(\d+) Physical Damage taken from Attacks')),
-            ('SpellBlock', Affix.int('(\d+)% Chance to Block Spells'))
-        ],
-        aggregators={
-            'LifeRegen': AffixCombine.scale(10),
-            'IncreasedLifeRegen': AffixCombine.scale(10),
-            'ColdLifeLeech': AffixCombine.scale(100),
-            'FireLifeLeech': AffixCombine.scale(100),
-            'LightningLifeLeech': AffixCombine.scale(100),
-            'GrantedSkillId': AffixCombine.restrict_to_one('GrantedSkill'),
-            'GrantedSkillLevel': AffixCombine.restrict_to_one('GrantedSkill'),
-        }
+            Affix.LifeRegen,
+            Affix.ManaRegen,
+            Affix.Strength,
+            Affix.Dexterity,
+            Affix.Intelligence,
+            Affix.ItemRarity,
+            Affix.DexterityAndIntelligence,
+            Affix.StrengthAndDexterity,
+            Affix.StrengthAndIntelligence,
+            Affix.AllAttributes,
+            Affix.IncreasedLifeRegen,
+            # Corrupted
+            Affix.AdditionalCurses,
+            Affix.AvoidIgnite,
+            Affix.BlockChance,
+            Affix.AvoidFreeze,
+            Affix.ChaosResist,
+            Affix.LifeLeechCold,
+            Affix.LifeLeechFire,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.AttackSpeed,
+            Affix.IncreasedWeaponEleDamage,
+            Affix.LifeLeechLightning,
+            Affix.MaxFrenzyCharges,
+            Affix.MaxResists,
+            Affix.MinionDamage,
+            Affix.MoveSpeed,
+            Affix.DamageToMana,
+            Affix.PhysDamageReduction,
+            Affix.SpellBlock
+        ]
     )
     parse_explicit_mods(
         item, 'Amulet', stats,
         parsers=[
             # Prefix
-            ('AddedColdAttackDamage', Affix.range('Adds (\d+) to (\d+) Cold Damage to Attacks')),
-            ('AddedFireAttackDamage', Affix.range('Adds (\d+) to (\d+) Fire Damage to Attacks')),
-            ('AddedLightningAttackDamage', Affix.range('Adds (\d+) to (\d+) Lightning Damage to Attacks')),
-            ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
-            ('IncreasedEnergyShield', Affix.int('(\d+)% increased maximum Energy Shield')),
-            ('IncreasedEvasion', Affix.int('(\d+)% increased Evasion Rating')),
-            ('EnergyShield', Affix.int('\+(\d+) to maximum Energy Shield')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('IncreasedArmour', Affix.int('(\d+)% increased Armour')),
-            ('IncreasedWeaponEleDamage', Affix.int('(\d+)% increased Elemental Damage with Weapons')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
-            ('LifeLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Life')),
-            ('ManaLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Mana')),
-            ('SpellDamage', Affix.int('(\d+)% increased Spell Damage')),
+            Affix.AddedColdAttackDamage,
+            Affix.AddedFireAttackDamage,
+            Affix.AddedLightningAttackDamage,
+            Affix.AddedPhysAttackDamage,
+            Affix.IncreasedEnergyShield,
+            Affix.IncreasedEvasion,
+            Affix.EnergyShield,
+            Affix.Life,
+            Affix.Mana,
+            Affix.IncreasedArmour,
+            Affix.IncreasedWeaponEleDamage,
+            Affix.ItemRarity,
+            Affix.LifeLeech,
+            Affix.ManaLeech,
+            Affix.SpellDamage,
             # Suffix
-            ('Strength', Affix.int('\+(\d+) to all Attributes')),
-            ('Dexterity', Affix.int('\+(\d+) to all Attributes')),
-            ('Intelligence', Affix.int('\+(\d+) to all Attributes')),
-            ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('CritChance', Affix.int('(\d+)% increased Global Critical Strike Chance')),
-            ('CritMulti', Affix.int('\+(\d+)% to Global Critical Strike Multiplier')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
-            ('IncreasedFireDamage', Affix.int('(\d+)% increased Fire Damage')),
-            ('IncreasedColdDamage', Affix.int('(\d+)% increased Cold Damage')),
-            ('IncreasedLightningDamage', Affix.int('(\d+)% increased Lightning Damage')),
-            ('Accuracy', Affix.int('\+(\d+) to Accuracy Rating')),
-            ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
-            ('LifeGainOnHit', Affix.int('\+(\d+) Life gained for each Enemy hit by your Attacks')),
-            ('LifeGainOnKill', Affix.int('\+(\d+) Life gained on Kill')),
-            ('LifeRegen', Affix.float('(\d+(\.\d)?) Life Regenerated per second')),
-            ('ManaGainOnKill', Affix.int('\+(\d+) Mana gained on Kill')),
-            ('ManaRegen', Affix.int('(\d+)% increased Mana Regeneration Rate')),
+            Affix.AllAttributes,
+            Affix.AllElementalResists,
+            Affix.FireResist,
+            Affix.ColdResist,
+            Affix.LightningResist,
+            Affix.ChaosResist,
+            Affix.GlobalCritChance,
+            Affix.GlobalCritMulti,
+            Affix.Strength,
+            Affix.Dexterity,
+            Affix.Intelligence,
+            Affix.IncreasedFireDamage,
+            Affix.IncreasedColdDamage,
+            Affix.IncreasedLightningDamage,
+            Affix.Accuracy,
+            Affix.CastSpeed,
+            Affix.LifeGainOnHit,
+            Affix.LifeGainOnKill,
+            Affix.LifeRegen,
+            Affix.ManaGainOnKill,
+            Affix.ManaRegen
         ],
-        aggregators={
-            'LifeLeech': AffixCombine.scale(100),
-            'ManaLeech': AffixCombine.scale(100),
-            'LifeRegen': AffixCombine.scale(10),
-        },
         banned={
             # Master signature mods
             '\-\d+ to Mana Cost of Skills',
@@ -442,30 +544,23 @@ def parse_body(item):
     parse_implicit_mods(
         item, 'BodyArmour', stats,
         parsers=[
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('SpellDamage', Affix.int('(\d+)% increased Spell Damage')),
-            ('MoveSpeed', Affix.int('(\d+)% increased Movement Speed')),
-            ('FireResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('ColdResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
-            ('LightningResist', Affix.int('\+(\d+)% to all Elemental Resistances')),
+            Affix.Mana,
+            Affix.SpellDamage,
+            Affix.MoveSpeed,
+            Affix.AllElementalResists,
             # Corrupted
-            ('AvoidFreeze', Affix.int('(\d+)% chance to Avoid being Frozen')),
-            ('AvoidIgnite', Affix.int('(\d+)% chance to Avoid being Ignited')),
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('GrantedSkillId', Affix.granted_skill_id()),
-            ('GrantedSkillLevel', Affix.granted_skill_level()),
-            ('CannotBeKnockedBack', Affix.text('Cannot be Knocked Back')),
-            ('SocketedGemLevel', Affix.int('\+(\d+) to Level of Socketed Gems')),
-            ('SocketedVaalGemLevel', Affix.int('\+(\d+) to Level of Socketed Vaal Gems')),
-            ('MaxResists', Affix.int('\+(\d+)% to all maximum Resistances')),
-            ('AvoidShock', Affix.int('(\d+)% chance to Avoid being Shocked')),
-            ('ManaMultiplier', Affix.int('Socketed Skill Gems get a (\d+)% Mana Multiplier'))
+            Affix.AvoidFreeze,
+            Affix.AvoidIgnite,
+            Affix.ChaosResist,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.CannotBeKnockedBack,
+            Affix.SocketedGemLevel,
+            Affix.SocketedVaalGemLevel,
+            Affix.MaxResists,
+            Affix.AvoidShock,
+            Affix.ManaMultiplier,
         ],
-        aggregators={
-            'CannotBeKnockedBack': AffixCombine.boolean_or(),
-            'GrantedSkillId': AffixCombine.restrict_to_one('GrantedSkill'),
-            'GrantedSkillLevel': AffixCombine.restrict_to_one('GrantedSkill'),
-        },
         ignored={
             '\d% reduced Movement Speed'
         },
@@ -474,21 +569,22 @@ def parse_body(item):
         item, 'BodyArmour', stats,
         parsers=[
             # Prefix
-            ('PhysReflect', Affix.int('Reflects (\d+) Physical Damage to Melee Attackers')),
-            ('StunRecovery', Affix.int('(\d+)% increased Stun and Block Recovery')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
+            Affix.PhysReflect,
+            Affix.StunRecovery,
+            Affix.Life,
+            Affix.Mana,
             # Suffix
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('LifeRegen', Affix.float('(\d+(\.\d)?) Life Regenerated per second')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
+            Affix.ChaosResist,
+            Affix.FireResist,
+            Affix.ColdResist,
+            Affix.LightningResist,
+            Affix.LifeRegen,
+            Affix.Strength,
+            Affix.Dexterity,
+            Affix.Intelligence
         ],
         ignored={
+            # These are already included in defenses / requirements
             '\d+% increased Armour',
             '\d+% increased Evasion Rating',
             '\d+% increased Energy Shield',
@@ -528,48 +624,43 @@ def parse_helmet(item):
     parse_implicit_mods(
         item, 'Helmet', stats,
         parsers=[
-            ('MinionDamage', Affix.int('Minions deal (\d+)% increased Damage')),
-            # Corrupted:
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('ManaShield', Affix.int('When Hit, (\d+)% of Damage is taken from Mana before Life')),
-            ('EnemiesCannotLeech', Affix.text('Enemies Cannot Leech Life From You')),
-            ('GrantedSkillId', Affix.granted_skill_id()),
-            ('GrantedSkillLevel', Affix.granted_skill_level()),
-            ('SocketedVaalGemLevel', Affix.int('\+(\d+) to Level of Socketed Vaal Gems')),
-            ('SupportedByCastOnCrit', Affix.int('Socketed Gems are supported by level (\d+) Cast On Crit')),
-            ('SupportedByCastOnStun', Affix.int('Socketed Gems are supported by level (\d+) Cast when Stunned'))
-        ],
-        aggregators={
-            'EnemiesCannotLeech': AffixCombine.boolean_or(),
-            'GrantedSkillId': AffixCombine.restrict_to_one('GrantedSkill'),
-            'GrantedSkillLevel': AffixCombine.restrict_to_one('GrantedSkill'),
-        }
+            Affix.MinionDamage,
+            # Corrupted
+            Affix.ChaosResist,
+            Affix.ManaShield,
+            Affix.EnemiesCannotLeech,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.SocketedVaalGemLevel,
+            Affix.SupportedByCastOnCrit,
+            Affix.SupportedByCastOnStun
+        ]
     )
     parse_explicit_mods(
         item, 'Helmet', stats,
         parsers = [
-            # Prefix
-            ('PhysReflect', Affix.int('Reflects (\d+) Physical Damage to Melee Attackers')),
-            ('StunRecovery', Affix.int('(\d+)% increased Stun and Block Recovery')),
-            ('SocketedMinionGemLevel', Affix.int('\+(\d+) to Level of Socketed Minion Gems')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
+            Affix.PhysReflect,
+            Affix.StunRecovery,
+            Affix.SocketedMinionGemLevel,
+            Affix.Life,
+            Affix.Mana,
+            Affix.ItemRarity,
             # Suffix
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('Accuracy', Affix.int('\+(\d+) to Accuracy Rating')),
-            ('IncreasedAccuracy', Affix.int('(\d+)% increased Accuracy Rating')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
-            ('LifeRegen', Affix.float('(\d+(\.\d)?) Life Regenerated per second')),
-            ('LightRadius', Affix.int('(\d+)% increased Light Radius')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
-            ('StunRecovery', Affix.int('(\d+)% increased Stun and Block Recovery')),
+            Affix.ChaosResist,
+            Affix.ColdResist,
+            Affix.Dexterity,
+            Affix.FireResist,
+            Affix.Accuracy,
+            Affix.IncreasedAccuracy,
+            Affix.Intelligence,
+            Affix.LifeRegen,
+            Affix.LightRadius,
+            Affix.LightningResist,
+            Affix.Strength,
+            Affix.StunRecovery
         ],
         ignored={
+            # These are already included in defenses / requirements
             '\d+% increased Armour',
             '\d+% increased Evasion Rating',
             '\d+% increased Energy Shield',
@@ -590,6 +681,8 @@ def parse_helmet(item):
             '\+\d to Level of Socketed Aura Gems',
             'Socketed Gems deal \d+% more Elemental Damage',
             '\d+% of Physical Damage taken as (Fire|Cold|Lightning) Damage',
+            'Socketed Gems have \d+% chance to Ignite',
+            'Socketed Gems gain \d+% of Physical Damage as extra Lightning Damage',
             # Deprecated
             '\d+% increased Quantity of Items found'
         }
@@ -597,6 +690,9 @@ def parse_helmet(item):
     return stats
 
 def parse_gloves(item):
+    if is_enchanted(item):
+        raise ItemBannedException('Item is enchanted', item['enchantMods'][0])
+
     stats = Counter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -605,62 +701,54 @@ def parse_gloves(item):
     parse_implicit_mods(
         item, 'Gloves', stats,
         parsers=[
-            ('MeleeDamage', Affix.int('(\d+)% increased Melee Damage')),
-            ('ProjectileAttackDamage', Affix.int('(\d+)% increased Projectile Attack Damage')),
-            ('SpellDamage', Affix.int('(\d+)% increased Spell Damage')),
+            Affix.MeleeDamage,
+            Affix.ProjectileAttackDamage,
+            Affix.SpellDamage,
             # Corrupted
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('EleWeaknessOnHit', Affix.int('Curse Enemies with level (\d+) Elemental Weakness on Hit')),
-            ('TempChainsOnHit', Affix.int('Curse Enemies with level (\d+) Temporal Chains on Hit')),
-            ('VulnerabilityOnHit', Affix.int('Curse Enemies with level (\d+) Vulnerability on Hit')),
-            ('GrantedSkillId', Affix.granted_skill_id()),
-            ('GrantedSkillLevel', Affix.granted_skill_level()),
-            ('SocketedGemLevel', Affix.int('\+(\d+) to Level of Socketed Gems')),
-            ('SocketedVaalGemLevel', Affix.int('\+(\d+) to Level of Socketed Vaal Gems')),
-            ('CastSpeed', Affix.int('(\d+)% increased Cast Speed')),
-            ('SupportedByCastOnCrit', Affix.int('Socketed Gems are supported by level (\d+) Cast On Crit')),
-            ('SupportedByCastOnStun', Affix.int('Socketed Gems are supported by level (\d+) Cast when Stunned'))
+            Affix.ChaosResist,
+            Affix.EleWeaknessOnHit,
+            Affix.TempChainsOnHit,
+            Affix.VulnerabilityOnHit,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.SocketedGemLevel,
+            Affix.SocketedVaalGemLevel,
+            Affix.CastSpeed,
+            Affix.SupportedByCastOnCrit,
+            Affix.SupportedByCastOnStun
         ],
-        aggregators={
-            'GrantedSkillId': AffixCombine.restrict_to_one('GrantedSkill'),
-            'GrantedSkillLevel': AffixCombine.restrict_to_one('GrantedSkill'),
-        }
     )
     parse_explicit_mods(
         item, 'Gloves', stats,
         parsers=[
             # Prefix
-            ('AddedColdAttackDamage', Affix.range('Adds (\d+) to (\d+) Cold Damage to Attacks')),
-            ('StunRecovery', Affix.int('(\d+)% increased Stun and Block Recovery')),
-            ('AddedFireAttackDamage', Affix.range('Adds (\d+) to (\d+) Fire Damage to Attacks')),
-            ('Life', Affix.int('\+(\d+) to maximum Life')),
-            ('Mana', Affix.int('\+(\d+) to maximum Mana')),
-            ('ItemRarity', Affix.int('(\d+)% increased Rarity of Items found')),
-            ('LifeLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Life')),
-            ('AddedLightningAttackDamage', Affix.range('Adds (\d+) to (\d+) Lightning Damage to Attacks')),
-            ('ManaLeech', Affix.float('(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Mana')),
-            ('AddedPhysAttackDamage', Affix.range('Adds (\d+) to (\d+) Physical Damage to Attacks')),
+            Affix.AddedColdAttackDamage,
+            Affix.StunRecovery,
+            Affix.AddedFireAttackDamage,
+            Affix.Life,
+            Affix.Mana,
+            Affix.ItemRarity,
+            Affix.LifeLeech,
+            Affix.AddedLightningAttackDamage,
+            Affix.ManaLeech,
+            Affix.AddedPhysAttackDamage,
             # Suffix
-            ('ChaosResist', Affix.int('\+(\d+)% to Chaos Resistance')),
-            ('ColdResist', Affix.int('\+(\d+)% to Cold Resistance')),
-            ('Dexterity', Affix.int('\+(\d+) to Dexterity')),
-            ('FireResist', Affix.int('\+(\d+)% to Fire Resistance')),
-            ('Accuracy', Affix.int('\+(\d+) to Accuracy Rating')),
-            ('AttackSpeed', Affix.int('(\d+)% increased Attack Speed')),
-            ('Intelligence', Affix.int('\+(\d+) to Intelligence')),
-            ('LifeGainOnHit', Affix.int('\+(\d+) Life gained for each Enemy hit by your Attacks')),
-            ('LifeGainOnKill', Affix.int('\+(\d+) Life gained on Kill')),
-            ('LifeRegen', Affix.float('(\d+(\.\d)?) Life Regenerated per second')),
-            ('LightningResist', Affix.int('\+(\d+)% to Lightning Resistance')),
-            ('ManaGainOnKill', Affix.int('\+(\d+) Mana gained on Kill')),
-            ('Strength', Affix.int('\+(\d+) to Strength')),
+            Affix.ChaosResist,
+            Affix.ColdResist,
+            Affix.Dexterity,
+            Affix.FireResist,
+            Affix.Accuracy,
+            Affix.AttackSpeed,
+            Affix.Intelligence,
+            Affix.LifeGainOnHit,
+            Affix.LifeGainOnKill,
+            Affix.LifeRegen,
+            Affix.LightningResist,
+            Affix.ManaGainOnKill,
+            Affix.Strength
         ],
-        aggregators={
-            'LifeLeech': AffixCombine.scale(100),
-            'ManaLeech': AffixCombine.scale(100),
-            'LifeRegen': AffixCombine.scale(10),
-        },
         ignored={
+            # These are already included in defenses / requirements
             '\d+% increased Armour',
             '\d+% increased Evasion Rating',
             '\d+% increased Energy Shield',
@@ -678,6 +766,7 @@ def parse_gloves(item):
             'Socketed Gems have \d+% more Attack and Cast Speed',
             'Socketed Gems have \+\d+(\.\d)?% Critical Strike Chance',
             'Socketed Gems deal 175 to 225 additional Fire Damage',
+            'Socketed Gems deal \d% more Damage over Time',
             'Minions have \d+% increased maximum Life',
             '\d+% increased Global Critical Strike Chance',
             '\d+% increased Life Leeched per second',
@@ -689,13 +778,207 @@ def parse_gloves(item):
     return stats
 
 def parse_boots(item):
-    return dict()
+    if is_enchanted(item):
+        raise ItemBannedException('Item is enchanted', item['enchantMods'][0])
+
+    stats = Counter()
+    stats['CannotBeKnockedBack'] = False
+    parse_sockets(item, stats)
+    parse_corrupted(item, stats)
+    parse_defenses(item, stats)
+    parse_requirements(item, stats)
+    parse_implicit_mods(
+        item, 'Boots', stats,
+        parsers=[
+            Affix.FireAndColdResist,
+            Affix.FireAndLightningResist,
+            Affix.ColdAndLightningResist,
+            # Corrupted
+            Affix.DodgeAttacks,
+            Affix.ChaosResist,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.CannotBeKnockedBack,
+            Affix.SocketedGemLevel,
+            Affix.SocketedVaalGemLevel,
+            Affix.MaxFrenzyCharges,
+            Affix.MoveSpeed
+        ],
+    )
+    parse_explicit_mods(
+        item, 'Boots', stats,
+        parsers=[
+            # Prefix
+            Affix.Life,
+            Affix.Mana,
+            Affix.ItemRarity,
+            Affix.MoveSpeed,
+            # Suffix
+            Affix.ChaosResist,
+            Affix.ColdResist,
+            Affix.Dexterity,
+            Affix.FireResist,
+            Affix.Intelligence,
+            Affix.LifeRegen,
+            Affix.LightningResist,
+            Affix.Strength,
+            Affix.StunRecovery
+        ],
+        ignored={
+            '\d+% increased Armour',
+            '\d+% increased Evasion Rating',
+            '\d+% increased Energy Shield',
+            '\d+% increased Armour and Evasion',
+            '\d+% increased Armour and Energy Shield',
+            '\d+% increased Evasion and Energy Shield',
+            '\d+% increased Armour, Evasion and Energy Shield',
+            '\+\d+ to Armour',
+            '\+\d+ to Evasion',
+            '\+\d+ to maximum Energy Shield',
+            '\d+% reduced Attribute Requirements',
+        },
+        banned={
+            # Essence
+            'Minions have \d+% increased maximum Life',
+            '\d+% chance to Avoid being (Stunned|Shocked|Frozen|Ignited)',
+            'Reflects \d+ Physical Damage to Melee Attackers',
+            '\d+% chance to Dodge Attacks',
+            'Cannot be Frozen',
+            # Deprecated
+            '\d+% increased Quantity of Items found'
+        }
+    )
+    return stats
 
 def parse_belt(item):
-    return dict()
+    stats = Counter()
+    parse_corrupted(item, stats)
+    parse_requirements(item, stats)
+    parse_implicit_mods(
+        item, 'Belt', stats,
+        parsers=[
+            Affix.EnergyShield,
+            Affix.IncreasedPhysDamage,
+            Affix.Strength,
+            Affix.Life,
+            Affix.StunRecovery,
+            Affix.StunDuration,
+            Affix.ArmourAndEvasion,
+            # Corrupted
+            Affix.IncreasedAoE,
+            Affix.ChaosResist,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.MaxEnduranceCharges,
+            Affix.AvoidShock,
+            Affix.SkillDuration,
+            Affix.AdditionalTraps
+        ],
+    )
+    parse_explicit_mods(
+        item, 'Belt', stats,
+        parsers=[
+            # Prefix
+            Affix.PhysReflect,
+            Affix.FlaskLife,
+            Affix.FlaskMana,
+            Affix.EnergyShield,
+            Affix.Armour,
+            Affix.Life,
+            Affix.IncreasedWeaponEleDamage,
+            # Suffix
+            Affix.FlaskChargeGain,
+            Affix.FlaskChargeUse,
+            Affix.FlaskDuration,
+            Affix.ChaosResist,
+            Affix.ColdResist,
+            Affix.FireResist,
+            Affix.LifeRegen,
+            Affix.LightningResist,
+            Affix.Strength,
+            Affix.StunDuration,
+            Affix.StunRecovery,
+            Affix.StunThreshold,
+        ],
+        banned={
+            # Essence
+            '^\d+% increased Damage',
+            '\d+% chance to Avoid being (Ignited|Frozen|Shocked|Stunned)',
+            '\+\d+ to (Dexterity|Intelligence)',
+            '\+\d+ to Evasion Rating',
+            'Minions have \d+% increased Life',
+        }
+    )
+    return stats
 
 def parse_shield(item):
-    return dict()
+    stats = Counter()
+    parse_sockets(item, stats)
+    parse_corrupted(item, stats)
+    parse_defenses(item, stats)
+    parse_requirements(item, stats)
+    parse_implicit_mods(
+        item, 'Shield', stats,
+        parsers=[
+            Affix.SpellDamage,
+            Affix.BlockRecovery,
+            Affix.AllElementalResists,
+            Affix.PhysReflect,
+            # Corrupted
+            Affix.AvoidIgnite,
+            Affix.ChaosResist,
+            Affix.GrantedSkillId,
+            Affix.GrantedSkillLevel,
+            Affix.SocketedGemLevel,
+            Affix.SocketedVaalGemLevel,
+            Affix.DamageToMana,
+            Affix.PhysDamageReduction,
+            Affix.SpellBlock
+        ]
+    )
+    parse_explicit_mods(
+        item, 'Shield', stats,
+        parsers=[
+            # Prefix
+            Affix.PhysReflect,
+            Affix.SocketedMeleeGemLevel,
+            Affix.SocketedChaosGemLevel,
+            Affix.SocketedColdGemLevel,
+            Affix.SocketedFireGemLevel,
+            Affix.SocketedLightningGemLevel,
+            Affix.Life,
+            Affix.Mana,
+            Affix.SpellDamage,
+            # Suffix
+            Affix.AllElementalResists,
+            Affix.ChaosResist,
+            Affix.ColdResist,
+            Affix.Dexterity,
+            Affix.FireResist,
+            Affix.Intelligence,
+            Affix.LifeRegen,
+            Affix.LightningResist,
+            Affix.ManaRegen,
+            Affix.SpellCrit,
+            Affix.Strength,
+            Affix.StunRecovery
+        ],
+        ignored=[
+            '\+\d+% Chance to Block',
+            '\d+% increased Armour',
+            '\d+% increased Evasion Rating',
+            '\d+% increased Energy Shield',
+            '\d+% increased Armour and Evasion',
+            '\d+% increased Armour and Energy Shield',
+            '\d+% increased Evasion and Energy Shield',
+            '\d+% increased Armour, Evasion and Energy Shield',
+            '\+\d+ to Armour',
+            '\+\d+ to Evasion',
+            '\+\d+ to maximum Energy Shield',
+            '\d+% reduced Attribute Requirements',
+        ]
+    )
+    return stats
 
 def parse_wand(item):
     return dict()
@@ -763,6 +1046,7 @@ def parse_defenses(item, stats):
     stats['Armour'] = int(armour / quality * 1.20)
     stats['Evasion'] = int(evasion / quality * 1.20)
     stats['EnergyShield'] = int(energy_shield / quality * 1.20)
+    stats['Block'] = read_percent_property('Chance to Block', item)
 
 
 def parse_requirements(item, stats):
@@ -796,6 +1080,13 @@ def read_int_property(property_name, item, default_value=0):
     if values is None or len(values) == 0:
         return default_value
     return int(values[0][0])
+
+
+def read_percent_property(property_name, item, default_value=0):
+    values = read_property(property_name, item)
+    if values is None or len(values) == 0:
+        return default_value
+    return int(values[0][0][:-1])
 
 
 def read_quality_multiplier(item):
@@ -834,7 +1125,8 @@ PARSERS = {
 
 
 def parse_stats(item, item_type):
-    return PARSERS[item_type](item)
+    stats = PARSERS[item_type](item)
+    return stats
 
 
 SKILLS = {
@@ -848,7 +1140,13 @@ SKILLS = {
     'Purity of Elements': 7,
     'Clarity': 8,
     'Wrath': 9,
-    'Assassin\'s Mark': 10
+    'Assassin\'s Mark': 10,
+    'Haste': 11,
+    'Temporal Chains': 12,
+    'Vitality': 13,
+    'Determination': 14,
+    'Discipline': 15,
+    'Grace': 16
 }
 
 

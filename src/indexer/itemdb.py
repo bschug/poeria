@@ -40,6 +40,8 @@ class ItemDB(object):
         self.add_body_items(items_by_type.get(itemtype.BODY, []))
         self.add_helmet_items(items_by_type.get(itemtype.HELMET, []))
         self.add_gloves_items(items_by_type.get(itemtype.GLOVES, []))
+        self.add_boots_items(items_by_type.get(itemtype.BOOTS, []))
+        self.add_belt_items(items_by_type.get(itemtype.BELT, []))
         self.add_ring_items(items_by_type.get(itemtype.RING, []))
         self.add_amulet_items(items_by_type.get(itemtype.AMULET, []))
 
@@ -162,6 +164,12 @@ class ItemDB(object):
 
     def add_gloves_items(self, items):
         self.store_item_values('GlovesItems', GLOVES_COLUMNS, items)
+
+    def add_boots_items(self, items):
+        self.store_item_values('BootsItems', BOOTS_COLUMNS, items)
+
+    def add_belt_items(self, items):
+        self.store_item_values('BeltItems', BELT_COLUMNS, items)
 
     def add_ring_items(self, items):
         self.store_item_values('RingItems', RING_COLUMNS, items)
@@ -308,6 +316,26 @@ GLOVES_COLUMNS = [
     'SocketedGemLevel', 'SocketedVaalGemLevel', 'SpellDamage', 'Strength',
     'StunRecovery', 'SupportedByCastOnCrit', 'SupportedByCastOnStun',
     'TempChainsOnHit', 'VulnerabilityOnHit'
+]
+
+BOOTS_COLUMNS = [
+    'ItemId', 'Hash', 'Sockets', 'Corrupted',
+    'ReqLevel', 'ReqStr', 'ReqDex', 'ReqInt',
+    'Armour', 'Evasion', 'EnergyShield',
+    'CannotBeKnockedBack', 'ChaosResist', 'ColdResist', 'Dexterity', 'DodgeAttacks',
+    'FireResist', 'GrantedSkillId', 'GrantedSkillLevel', 'Intelligence', 'ItemRarity',
+    'Life', 'LifeRegen', 'LightningResist', 'Mana', 'MaxFrenzyCharges', 'MoveSpeed',
+    'SocketedGemLevel', 'SocketedVaalGemLevel', 'Strength', 'StunRecovery'
+]
+
+BELT_COLUMNS = [
+    'ItemId', 'Hash', 'Corrupted', 'ReqLevel',
+    'AdditionalTraps', 'Armour', 'AvoidShock', 'ChaosResist', 'ColdResist',
+    'EnergyShield', 'Evasion', 'FireResist', 'FlaskChargeGain', 'FlaskChargeUse',
+    'FlaskDuration', 'FlaskLife', 'FlaskMana', 'GrantedSkillId', 'GrantedSkillLevel',
+    'IncreasedAoE', 'IncreasedPhysDamage', 'IncreasedWeaponEleDamage', 'Life',
+    'LifeRegen', 'LightningResist', 'MaxEnduranceCharges', 'PhysReflect',
+    'SkillDuration', 'Strength', 'StunDuration', 'StunRecovery', 'StunThreshold'
 ]
 
 RING_COLUMNS = [
