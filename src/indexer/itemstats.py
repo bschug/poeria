@@ -724,6 +724,8 @@ def parse_helmet(item):
             '\d+% reduced Attribute Requirements',
         },
         banned={
+            # Signature Mod
+            '\+\d to Level of Socketed Support Gems',
             # Essences
             'Minions have \d+% increased maximum Life',
             '\d+% reduced Mana Reserved',
@@ -892,6 +894,8 @@ def parse_boots(item):
             'Reflects \d+ Physical Damage to Melee Attackers',
             '\d+% chance to Dodge Attacks',
             'Cannot be Frozen',
+            'Drops Burning Ground while moving, dealing 2500 Fire Damage per second',
+            '\d+% chance to Dodge Spell Damage',
             # Deprecated
             '\d+% increased Quantity of Items found'
         }
@@ -1019,8 +1023,10 @@ def parse_quiver(item):
             Affix.StunDuration
         ],
         banned=[
+            # Essence
             'Adds \d+ to \d+ Cold Damage per Frenzy Charge',
             '\d+% increased Damage with Poison',
+            'Minions have \d+% increased Movement Speed',
         ]
     )
     return stats
@@ -1179,6 +1185,7 @@ def parse_wand(item):
             'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
             'Minions deal \d+% increased Damage',
             '\d+% chance to gain a Power, Frenzy or Endurance Charge on Kill',
+            'Casts level 20 Spectral Spirits when equipped',
             # Signature Mod
             '\+\d+% to Quality of Socketed Support Gems',
         }
@@ -1433,6 +1440,8 @@ def parse_one_hand_sword(item):
             'Casts level 20 Spectral Spirits when equipped',
             'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
             '\d+% increased Spell Damage',
+            'Minions deal \d+% increased Damage',
+            '\d+% increased Cast Speed',
         ]
     )
     return stats
@@ -1460,6 +1469,9 @@ def parse_two_hand_sword(item):
             Affix.LifeLeechLightning,
             Affix.WeaponRange,
             Affix.SupportedByAdditionalAccuracy
+        ],
+        ignored=[
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
@@ -1501,7 +1513,7 @@ def parse_two_hand_sword(item):
             # Signature Mod
             'Hits can\'t be Evaded',
             # Essence
-            '\+\d+ to Level of Socketed (Cold|Fire) Gems',
+            '\+\d+ to Level of Socketed (Cold|Fire|Lightning) Gems',
             '\d+% increased Spell Damage',
             'Minions deal \d+% increased Damage',
         ]
@@ -1566,6 +1578,10 @@ def parse_one_hand_axe(item):
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+        ],
+        banned=[
+            # Signature mods
+            'Hits can\'t be Evaded',
         ]
     )
     return stats
@@ -1635,7 +1651,8 @@ def parse_two_hand_axe(item):
         banned=[
             # Essence
             '\+\d to Weapon range',
-            '\+\d to Level of Socketed (Cold|Fire) Gems'
+            '\+\d to Level of Socketed (Cold|Fire|Lightning) Gems',
+            '\d+% increased Spell Damage',
         ]
     )
     return stats
@@ -1765,6 +1782,12 @@ def parse_two_hand_mace(item):
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+        ],
+        banned=[
+            # Essence
+            'Minions deal \d+% increased Damage',
+            '\+\d to Level of Socketed (Fire|Cold|Lightning) Gems',
+            '\d+% increased Spell Damage',
         ]
     )
     return stats
@@ -1841,7 +1864,7 @@ def parse_bow(item):
             '\d+% increased Cast Speed',
             '\d+% chance to Cast Level 20 Fire Burst on Hit',
             'Minions deal \d+% increased Damage',
-            '\+\d to Level of Socketed (Cold|Fire) Gems',
+            '\+\d to Level of Socketed (Cold|Fire|Lightning) Gems',
             'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
         ]
     )
