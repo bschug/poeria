@@ -1,4 +1,5 @@
-from predict.predictor import Predictor
+import time
+
 
 class Indexer(object):
     def __init__(self, item_db, poeapi, first_id='0'):
@@ -6,7 +7,6 @@ class Indexer(object):
         self.poeapi = poeapi
         self.is_running = False
         self.next_change_id = first_id
-        #self.predictor = Predictor()
 
     def run(self):
         self.is_running = True
@@ -15,16 +15,23 @@ class Indexer(object):
 
     def process_next_stash_update(self):
         print("Requesting next...")
+        start_time = time.time()
         stashes = self.get_next_stash_update()
-        print("Received {} stashes".format(len(stashes)))
-        deleted = 0
+        print("Received {} stashes after {:.1f} seconds".format(
+            len(stashes), time.time() - start_time))
+
+        start_time = time.time()
+        total_num_deleted = 0
+        total_added = []
         for stash in stashes:
-            deleted += self.item_db.update_stash(stash)
-            #if stash['stash'] == 'GG':
-            #    predictions = self.predictor.predict(stash)
-            #    self.item_db.update_gg_stash(stash, predictions)
+            added, num_deleted = self.item_db.update_stash(stash)
+            total_added.extend(added)
+            total_num_deleted += num_deleted
+        self.item_db.add_items(total_added)
         self.item_db.commit()
-        print("Sold: ", deleted)
+        print("Processed {} items in {:.2f} seconds".format(
+            len(total_added), time.time() - start_time))
+        print("Sold: ", num_deleted)
         print("Total Items: ", self.item_db.count())
 
     def get_next_stash_update(self):

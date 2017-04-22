@@ -14,7 +14,7 @@ def main(args):
         pr.enable()
 
     next_change_id = load_next_change_id() if args.id is None else args.id
-    db = ItemDB()
+    db = ItemDB(args.db)
     api = PoEApi()
     indexer = Indexer(db, api, next_change_id)
 
@@ -35,6 +35,7 @@ def parse_args():
     ap.add_argument('--id')
     ap.add_argument('--max-updates', type=int, default=0, help='End program after this many updates')
     ap.add_argument('--profile', default=False, action='store_true')
+    ap.add_argument('--db', default="dbname='poeria' user='benjamin'", help='Database credentials')
     return ap.parse_args()
 
 

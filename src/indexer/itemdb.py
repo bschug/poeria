@@ -15,14 +15,14 @@ from constants import itemtype
 from constants import currency
 
 class ItemDB(object):
-    def __init__(self):
-        self.dbconn = psycopg2.connect("dbname='poeria' user='benjamin'")
+    def __init__(self, db_access_string="dbname='poeria' user='benjamin'"):
+        self.dbconn = psycopg2.connect(db_access_string)
         self.db = self.dbconn.cursor()
 
     def update_stash(self, stash):
         raw_items = stash['items']
         if len(raw_items) == 0:
-            return 0
+            return [], 0
 
         stash_id = stash['id']
         stash_price = get_price(stash['stash'])
@@ -32,6 +32,9 @@ class ItemDB(object):
         previous_stash_content = self.get_stash_content(stash_id)
         num_sold = self.mark_deleted_items_as_sold(previous_stash_content, stash_id, items)
         self.reset_seen_date_for_modified_items(previous_stash_content, stash_id, items)
+        return items, num_sold
+
+    def add_items(self, items):
         self.add_to_stash(items)
 
         items_by_type = defaultdict(lambda: [])
@@ -56,8 +59,6 @@ class ItemDB(object):
         self.add_two_hand_mace_items(items_by_type[itemtype.TWO_HAND_MACE])
         self.add_bow_items(items_by_type[itemtype.BOW])
         self.add_sceptre_items(items_by_type[itemtype.SCEPTRE])
-
-        return num_sold
 
     def mark_deleted_items_as_sold(self, previous_stash_content, stash_id, items):
         """
