@@ -27,6 +27,9 @@ class PoEApi(object):
             except requests.ConnectionError as ex:
                 print("Connection error:", str(ex))
                 time.sleep(5)
+            except requests.exceptions.ContentDecodingError as ex:
+                print("Invalid Response: ", ex)
+                time.sleep(5)
             except AssertionError:
                 print("Invalid Response, trying again")
             except JSONDecodeError as ex:
