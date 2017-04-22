@@ -136,7 +136,7 @@ class AffixParser(object):
         :param aggregate:   Aggregator function: old, new -> combined
         """
         # Allow single stat id passed directly, convert to tuple internally
-        self.stat_ids = (stat_ids,) if stat_ids is str else stat_ids
+        self.stat_ids = (stat_ids,) if isinstance(stat_ids, str) else stat_ids
         self.parse = parse
         self.aggregator = aggregate
 
@@ -221,7 +221,7 @@ class Affix(object):
     FlaskLife = IntAffix('FlaskLife', '(\d+)% increased Flask Life Recovery rate')
     FlaskMana = IntAffix('FlaskMana', '(\d+)% increased Flask Mana Recovery rate')
     GlobalCritChance = IntAffix('GlobalCritChance', '(\d+)% increased Global Critical Strike Chance')
-    GlobalCritMulti = IntAffix('CritMulti', '\+(\d+)% to Global Critical Strike Multiplier')
+    GlobalCritMulti = IntAffix('GlobalCritMulti', '\+(\d+)% to Global Critical Strike Multiplier')
     GrantedSkillId = AffixParser(('GrantedSkillId',), AffixParse.granted_skill_id(), AffixCombine.restrict_to_one('GrantedSkill'))
     GrantedSkillLevel = AffixParser(('GrantedSkillLevel',), AffixParse.granted_skill_level(), AffixCombine.restrict_to_one('GrantedSkill'))
     IncreasedAccuracy = IntAffix('IncreasedAccuracy', '(\d+)% increased Accuracy Rating')
@@ -243,6 +243,7 @@ class Affix(object):
     Intelligence = IntAffix('Intelligence', '\+(\d+) to Intelligence')
     ItemRarity = IntAffix('ItemRarity', '(\d+)% increased Rarity of Items found')
     Life = IntAffix('Life', '\+(\d+) to maximum Life')
+    LifeAndManaGainOnHit = IntAffix(('LifeGainOnHit', 'ManaGainOnHit'), '\+(\d+) Life and Mana gained for each Enemy hit')
     LifeLeech = FloatAffix('LifeLeech', '(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Life', 100)
     LifeLeechCold = FloatAffix('LifeLeechCold', '(\d(\.\d+)?)% of Cold Damage Leeched as Life', 100)
     LifeLeechLightning = FloatAffix('LifeLeechLightning', '(\d(\.\d+)?)% of Lightning Damage Leeched as Life', 100)
@@ -253,7 +254,7 @@ class Affix(object):
     LightningResist = IntAffix('LightningResist', '\+(\d+)% to Lightning Resistance')
     LightRadius = IntAffix('LightRadius', '(\d+)% increased Light Radius')
     Mana = IntAffix('Mana', '\+(\d+) to maximum Mana')
-    ManaGainOnHit = IntAffix('ManaGainOnHit', '\+(\d+) Mana gained for each Enemy hit by your Attacks')
+    ManaGainOnHit = IntAffix('ManaGainOnHit', '\+(\d+) Mana gained for each Enemy hit by (your )?Attacks')
     ManaGainOnKill = IntAffix('ManaGainOnKill', '\+(\d+) Mana gained on Kill')
     ManaLeech = FloatAffix('ManaLeech', '(\d+(\.\d+)?)% of Physical Attack Damage Leeched as Mana', 100)
     ManaMultiplier = IntAffix('ManaMultiplier', 'Socketed Skill Gems get a (\d+)% Mana Multiplier')
@@ -298,8 +299,8 @@ class Affix(object):
     SupportedByAdditionalAccuracy = IntAffix('SupportedByAdditionalAccuracy', 'Socketed Gems are supported by level (\d+) Additional Accuracy')
     SupportedByCastOnCrit = IntAffix('SupportedByCastOnCrit', 'Socketed Gems are supported by level (\d+) Cast On Crit')
     SupportedByCastOnStun = IntAffix('SupportedByCastOnStun', 'Socketed Gems are supported by level (\d+) Cast when Stunned')
-    SupportedByEleProlif = IntAffix('SupportedByEleProlif', 'Socketed Gems are supported by level (\d+) Elemental Proliferation')
-    SupportedByFasterCasting = IntAffix('SupportedByFasterCasting', 'Socketed Gems are supported by level (\d+) Faster Casting')
+    SupportedByEleProlif = IntAffix('SupportedByEleProlif', 'Socketed Gems are Supported by level (\d+) Elemental Proliferation')
+    SupportedByFasterCasting = IntAffix('SupportedByFasterCasting', 'Socketed Gems are Supported by level (\d+) Faster Casting')
     SupportedByFork = IntAffix('SupportedByFork', 'Socketed Gems are supported by level (\d+) Fork')
     SupportedByIncreasedAoE = IntAffix('SupportedByIncreasedAoE', 'Socketed Gems are supported by level (\d+) Increased Area of Effect')
     SupportedByIncreasedCritDamage = IntAffix('SupportedByIncreasedCritDamage', 'Socketed Gems are supported by level (\d+) Increased Critical Damage')
@@ -393,7 +394,7 @@ def parse_ring(item):
     stats['DoubledInBreach'] = False
     parse_corrupted(item, stats)
     parse_sockets(item, stats)
-    parse_requirements(item, stats)
+    parse_requirements(item, stats, level_only=True, ignore_others=True)
     parse_implicit_mods(
         item, 'Ring', stats,
         parsers=[
@@ -490,7 +491,7 @@ def parse_ring(item):
 def parse_amulet(item):
     stats = Counter()
     parse_corrupted(item, stats)
-    parse_requirements(item, stats)
+    parse_requirements(item, stats, level_only=True)
     parse_implicit_mods(
         item, 'Amulet', stats,
         parsers=[
@@ -578,6 +579,8 @@ def parse_amulet(item):
             'Minions have \d+% increased Movement Speed',
             '\d+% increased effect of Fortify on You',
             '\d+% increased Attack Speed',
+            '\d+(\.\d+)?% of Chaos Damage Leeched as Life',
+            '10% chance to Recover 10% of Maximum Mana when you use a Skill',
             # Deprecated stats
             '\d+% increased Quantity of Items found',
         }
@@ -811,11 +814,12 @@ def parse_gloves(item):
             'Socketed Gems have \d+% more Attack and Cast Speed',
             'Socketed Gems have \+\d+(\.\d)?% Critical Strike Chance',
             'Socketed Gems deal 175 to 225 additional Fire Damage',
-            'Socketed Gems deal \d% more Damage over Time',
+            'Socketed Gems deal \d+% more Damage over Time',
             'Minions have \d+% increased maximum Life',
             '\d+% increased Global Critical Strike Chance',
             '\d+% increased Life Leeched per second',
             'Your Flasks grant \d+% increased Rarity of Items found while using a Flask',
+            '\d+% chance to Avoid being Stunned',
             # Deprecated
             '\d+% increased Quantity of Items found'
         }
@@ -898,7 +902,7 @@ def parse_boots(item):
 def parse_belt(item):
     stats = Counter()
     parse_corrupted(item, stats)
-    parse_requirements(item, stats)
+    parse_requirements(item, stats, level_only=True)
     parse_implicit_mods(
         item, 'Belt', stats,
         parsers=[
@@ -952,6 +956,8 @@ def parse_belt(item):
             '\+\d+ to (Dexterity|Intelligence)',
             '\+\d+ to Evasion Rating',
             'Minions have \d+% increased maximum Life',
+            '\d+% increased Movement Speed while using a Flask',
+            'Damage Penetrates \d+% Elemental Resistances while using a Flask',
         }
     )
     return stats
@@ -959,8 +965,9 @@ def parse_belt(item):
 
 def parse_quiver(item):
     stats = Counter()
+    stats['AddedArrow'] = False
     parse_corrupted(item, stats)
-    parse_requirements(item, stats)
+    parse_requirements(item, stats, level_only=True)
     parse_implicit_mods(
         item, 'Quiver', stats,
         parsers=[
@@ -1010,16 +1017,20 @@ def parse_quiver(item):
             Affix.ManaGainOnKill,
             Affix.ProjectileSpeed,
             Affix.StunDuration
+        ],
+        banned=[
+            'Adds \d+ to \d+ Cold Damage per Frenzy Charge',
+            '\d+% increased Damage with Poison',
         ]
     )
-
+    return stats
 
 
 def parse_shield(item):
     stats = Counter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
-    parse_armour_properties(item, stats)
+    parse_shield_properties(item, stats)
     parse_requirements(item, stats)
     parse_implicit_mods(
         item, 'Shield', stats,
@@ -1082,7 +1093,11 @@ def parse_shield(item):
             '\d+% reduced Attribute Requirements',
         ],
         banned=[
-            '\d+% chance to Avoid Lightning Damage when Hit'
+            # Signature Mod
+            '\+\d+ to Level of Socketed Support Gems',
+            # Essence
+            '\d+% chance to Avoid (Fire|Cold|Lightning) Damage when Hit',
+            'Minions have \d+% increased maximum Life'
         ]
     )
     return stats
@@ -1109,6 +1124,9 @@ def parse_wand(item):
             Affix.ChanceToFlee,
             Affix.LifeLeechLightning,
             Affix.Pierce
+        ],
+        ignored=[
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
@@ -1155,10 +1173,14 @@ def parse_wand(item):
             '\d+% increased Critical Strike Chance',
             '\d+% increased Attack Speed',
             '\d+% reduced Attribute Requirements',
-            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage',
         },
         banned={
-            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds'
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
+            'Minions deal \d+% increased Damage',
+            '\d+% chance to gain a Power, Frenzy or Endurance Charge on Kill',
+            # Signature Mod
+            '\+\d+% to Quality of Socketed Support Gems',
         }
     )
     return stats
@@ -1184,6 +1206,9 @@ def parse_staff(item):
             Affix.LifeLeechLightning,
             Affix.WeaponRange,
             Affix.SpellBlock,
+        ],
+        ignored=[
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
@@ -1236,7 +1261,12 @@ def parse_staff(item):
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
         ],
         banned=[
-            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds'
+            # Master-crafting / Signature Mods
+            'Hits can\'t be Evaded',
+            # Essence
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
+            'Minions deal \d+% increased Damage',
+            '10% chance to Cast Level 20 Fire Burst on Hit',
         ]
     )
     return stats
@@ -1244,6 +1274,7 @@ def parse_staff(item):
 
 def parse_dagger(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1263,6 +1294,10 @@ def parse_dagger(item):
             Affix.WeaponRange,
             Affix.SupportedByIncreasedCritDamage,
             Affix.SupportedByMeleeSplash
+        ],
+        ignored=[
+            # Part of Weapon Stats
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
@@ -1313,10 +1348,12 @@ def parse_dagger(item):
         banned={
             # Master
             'Hits can\'t be Evaded',
+            '\+\d+ to Level of Socketed Support Gems',
             # Essence
             'Minions deal \d+% increased Damage',
             'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
             '\d+% increased Cast Speed',
+            'Damage Penetrates \d+% Fire Resistance',
         }
     )
     return stats
@@ -1324,6 +1361,7 @@ def parse_dagger(item):
 
 def parse_one_hand_sword(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1346,6 +1384,9 @@ def parse_one_hand_sword(item):
             Affix.WeaponRange,
             Affix.SupportedByMeleeSplash,
             Affix.SupportedByMultistrike
+        ],
+        ignored=[
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
@@ -1381,7 +1422,17 @@ def parse_one_hand_sword(item):
             '\d+% increased Attack Speed',
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
-            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage',
+        ],
+        banned=[
+            # Master-crafting / Signature Mods
+            'Hits can\'t be Evaded',
+            '\+\d+% to Quality of Socketed Support Gems',
+            # Essence
+            '\d+% increased Spell Damage',
+            'Casts level 20 Spectral Spirits when equipped',
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
+            '\d+% increased Spell Damage',
         ]
     )
     return stats
@@ -1389,6 +1440,7 @@ def parse_one_hand_sword(item):
 
 def parse_two_hand_sword(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1444,6 +1496,14 @@ def parse_two_hand_sword(item):
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+        ],
+        banned=[
+            # Signature Mod
+            'Hits can\'t be Evaded',
+            # Essence
+            '\+\d+ to Level of Socketed (Cold|Fire) Gems',
+            '\d+% increased Spell Damage',
+            'Minions deal \d+% increased Damage',
         ]
     )
     return stats
@@ -1451,6 +1511,7 @@ def parse_two_hand_sword(item):
 
 def parse_one_hand_axe(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1507,10 +1568,12 @@ def parse_one_hand_axe(item):
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
         ]
     )
+    return stats
 
 
 def parse_two_hand_axe(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1530,7 +1593,7 @@ def parse_two_hand_axe(item):
             Affix.WeaponRange
         ],
         ignored=[
-            '\d+% increased Critical Strike Chance'
+            '\d+% increased Critical Strike Chance',
             'Adds \d+ to \d+ Chaos Damage'
         ]
     )
@@ -1567,7 +1630,12 @@ def parse_two_hand_axe(item):
             '\d+% increased Attack Speed',
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
-            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage',
+        ],
+        banned=[
+            # Essence
+            '\+\d to Weapon range',
+            '\+\d to Level of Socketed (Cold|Fire) Gems'
         ]
     )
     return stats
@@ -1594,7 +1662,12 @@ def parse_one_hand_mace(item):
             Affix.SupportedByStun,
         ],
         ignored=[
-            'Adds \d+ to \d+ Chaos Damage'
+            'Adds \d+ to \d+ Chaos Damage',
+            '\d+% increased Attack Speed',
+        ],
+        banned=[
+            # Legacy
+            '\d+% increased Stun Duration on Enemies'
         ]
     )
     parse_explicit_mods(
@@ -1699,6 +1772,8 @@ def parse_two_hand_mace(item):
 
 def parse_bow(item):
     stats = Counter()
+    stats['CullingStrike'] = False
+    stats['AddedArrow'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1756,13 +1831,26 @@ def parse_bow(item):
             '\d+% increased Attack Speed',
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
-            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+            'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage',
+        ],
+        banned=[
+            # Signature Mod
+            'Causes Bleeding on Hit',
+            # Essence
+            '\d+% increased Spell Damage',
+            '\d+% increased Cast Speed',
+            '\d+% chance to Cast Level 20 Fire Burst on Hit',
+            'Minions deal \d+% increased Damage',
+            '\+\d to Level of Socketed (Cold|Fire) Gems',
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
         ]
     )
+    return stats
 
 
 def parse_claw(item):
     stats = Counter()
+    stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1772,6 +1860,7 @@ def parse_claw(item):
         parsers=[
             Affix.LifeGainOnHit,
             Affix.ManaGainOnHit,
+            Affix.LifeAndManaGainOnHit,
             Affix.LifeLeech,
             # Corrupted
             Affix.BlockChanceWhileDualWielding,
@@ -1823,6 +1912,12 @@ def parse_claw(item):
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+        ],
+        banned=[
+            # Master-crafting / Signature Mods
+            'Hits can\'t be Evaded',
+            # Essence
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
         ]
     )
     return stats
@@ -1842,7 +1937,7 @@ def parse_sceptre(item):
             # Corrupted
             Affix.LifeLeechCold,
             Affix.PhysToCold,
-            Affix.PhysToLightning,
+            Affix.PhysToFire,
             Affix.SupportedByFasterCasting,
             Affix.LifeLeechFire,
             Affix.ChanceToFlee,
@@ -1903,9 +1998,17 @@ def parse_sceptre(item):
             '\d+% increased Critical Strike Chance',
             '\d+% reduced Attribute Requirements',
             'Adds \d+ to \d+ (Cold|Fire|Lightning|Chaos) Damage'
+        ],
+        banned=[
+            # Signature mods
+            'Hits can\'t be Evaded',
+            # Essence
+            '10% chance to Cast Level 20 Fire Burst on Hit',
+            'Minions deal \d+% increased Damage',
+            'Your Hits inflict Decay, dealing 750 Chaos Damage per second for 10 seconds',
         ]
     )
-
+    return stats
 
 
 def is_enchanted(item):
@@ -1931,6 +2034,13 @@ def parse_armour_properties(item, stats):
     stats['Armour'] = read_int_property('Armour', item)
     stats['Evasion'] = read_int_property('Evasion Rating', item)
     stats['EnergyShield'] = read_int_property('Energy Shield', item)
+
+
+def parse_shield_properties(item, stats):
+    stats['Quality'] = read_quality(item)
+    stats['Armour'] = read_int_property('Armour', item)
+    stats['Evasion'] = read_int_property('Evasion Rating', item)
+    stats['EnergyShield'] = read_int_property('Energy Shield', item)
     stats['Block'] = read_percent_property('Chance to Block', item)
 
 
@@ -1943,19 +2053,27 @@ def parse_weapon_properties(item, stats):
     stats['CritChance'] = read_percent_property('Critical Strike Chance', item, scale=100)
 
 
-def parse_requirements(item, stats):
+def parse_requirements(item, stats, level_only=False, ignore_others=False):
     stats['ReqLevel'] = 0
-    stats['ReqStr'] = 0
-    stats['ReqDex'] = 0
-    stats['ReqInt'] = 0
+
+    if not level_only:
+        stats['ReqStr'] = 0
+        stats['ReqDex'] = 0
+        stats['ReqInt'] = 0
 
     if 'requirements' not in item:
         return
 
     for requirement in item['requirements']:
         if requirement['name'][:3] not in {'Lev', 'Str', 'Dex', 'Int'}:
-            print("WARNING: Unknown requirement: ", requirement['name'])
-            continue
+            raise ItemParserException('Unknown requirement: ' + requirement['name'])
+        if level_only and requirement['name'][:3] != 'Lev':
+            if ignore_others:
+                continue
+            raise ItemParserException(
+                'Expected only level requirement but found {} on {} item'.format(
+                    requirement['name'], itemtype.get_name(item['type'])
+                ))
         # Yes this really happens, sometimes they write the full name...
         if requirement['name'] != 'Level':
             requirement['name'] = requirement['name'][:3]
@@ -2066,6 +2184,7 @@ SKILLS = {
     'Elemental Weakness': 18,
     'Anger': 19,
     'Vulnerability': 20,
+    'Projectile Weakness': 21,
 }
 
 

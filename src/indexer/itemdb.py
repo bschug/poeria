@@ -1,10 +1,11 @@
 import hashlib
 from collections import defaultdict
 import json
+import re
 
 import psycopg2
 from psycopg2.extras import Json
-import re
+from blessings import Terminal
 
 from indexer.itemstats import ItemBannedException, ItemParserException
 from . import itemstats
@@ -155,8 +156,9 @@ class ItemDB(object):
 
         # Ensure all stats on the item have a corresponding column in the db
         for item in items:
-            for stat in item['stats'].keys:
-                assert stat in columns, '{} table has no column for {}'.format(table, stat)
+            for stat in item['stats'].keys():
+                assert stat in columns, '{} table has no column for {} (value: {})\n{}'.format(
+                    table, stat, item['stats'][stat], item)
 
         # Remove all items that have changed
         for item in items:
@@ -312,10 +314,10 @@ def preprocess_item(item, stash_id, default_price=None):
         pass
 
     except ItemParserException as ex:
-        print(ex.msg)
+        print(Terminal().bold_yellow(ex.msg))
 
     except Exception as ex:
-        print("Exception while preprocessing item: ", json.dumps(item))
+        print(Terminal().bold_red("Exception while preprocessing item: ", json.dumps(item)))
         raise ex
 
 
@@ -356,7 +358,8 @@ HELMET_COLUMNS = [
     'AddedArmour', 'IncreasedArmour', 'AddedEvasion', 'IncreasedEvasion',
     'AddedEnergyShield', 'IncreasedEnergyShield',
     'Accuracy', 'ChaosResist', 'ColdResist', 'Dexterity', 'EnemiesCannotLeech',
-    'FireResist', 'GrantedSkillId', 'GrantedSkillLevel', 'Intelligence', 'ItemRarity',
+    'FireResist', 'GrantedSkillId', 'GrantedSkillLevel',
+    'IncreasedAccuracy', 'Intelligence', 'ItemRarity',
     'Life', 'LifeRegen', 'LightningResist', 'LightRadius', 'Mana', 'ManaShield',
     'MinionDamage', 'PhysReflect', 'SocketedMinionGemLevel', 'SocketedVaalGemLevel',
     'Strength', 'StunRecovery', 'SupportedByCastOnCrit', 'SupportedByCastOnStun'
@@ -419,7 +422,8 @@ RING_COLUMNS = [
     'ItemId', 'Hash', 'Corrupted', 'Sockets', 'ReqLevel',
     'Accuracy', 'AddedChaosAttackDamage', 'AddedColdAttackDamage', 'AddedEnergyShield',
     'AddedEvasion', 'AddedFireAttackDamage', 'AddedLightningAttackDamage',
-    'AddedPhysAttackDamage', 'AttackSpeed', 'AvoidFreeze', 'CastSpeed', 'ColdResist',
+    'AddedPhysAttackDamage', 'AttackSpeed', 'AvoidFreeze',
+    'CastSpeed', 'ChaosResist', 'ColdResist',
     'DamageToMana', 'Dexterity', 'DoubledInBreach', 'FireResist', 'GlobalCritChance',
     'GrantedSkillId', 'GrantedSkillLevel', 'IncreasedAccuracy', 'IncreasedColdDamage',
     'IncreasedEleDamage', 'IncreasedFireDamage', 'IncreasedLightningDamage',
@@ -457,12 +461,12 @@ WAND_COLUMNS = [
     'AddedPhysDamageLocal', 'AddedSpellColdDamage', 'AddedSpellFireDamage',
     'AddedSpellLightningDamage', 'CastSpeed', 'ChanceToFlee', 'ChaosResist',
     'ColdResist', 'CullingStrike', 'FireResist', 'GlobalCritMulti',
-    'GrantedSkillId', 'GrantedSkillLevel', 'IncreasedColdDamage',
+    'GrantedSkillId', 'GrantedSkillLevel', 'IncreasedAccuracy', 'IncreasedColdDamage',
     'IncreasedFireDamage', 'IncreasedLightningDamage', 'IncreasedPhysDamage',
     'IncreasedWeaponEleDamage', 'Intelligence', 'LifeGainOnHit', 'LifeGainOnKill',
     'LifeLeech', 'LifeLeechCold', 'LifeLeechFire', 'LifeLeechLightning',
-    'LightningResist', 'LightRadius', 'Mana', 'ManaGainOnHit', 'ManaLeech',
-    'ManaRegen', 'ProjectileSpeed', 'SocketedGemLevel', 'SocketedChaosGemLevel',
+    'LightningResist', 'LightRadius', 'Mana', 'ManaGainOnKill', 'ManaLeech',
+    'ManaRegen', 'Pierce', 'ProjectileSpeed', 'SocketedGemLevel', 'SocketedChaosGemLevel',
     'SocketedColdGemLevel', 'SocketedFireGemLevel', 'SocketedLightningGemLevel',
     'SpellCrit', 'SpellDamage', 'StunDuration', 'SupportedByEleProlif'
 ]
@@ -474,11 +478,13 @@ STAFF_COLUMNS = [
     'Accuracy', 'AddedPhysDamageLocal', 'AddedSpellColdDamage',
     'AddedSpellFireDamage', 'AddedSpellLightningDamage', 'AttackSpeed', 'BlockChance',
     'CastSpeed', 'ChanceToFlee', 'ChaosResist', 'ColdResist', 'FireResist',
-    'GlobalCritChance', 'GlobalCritMulti', 'IncreasedColdDamage', 'IncreasedFireDamage',
-    'IncreasedLightningDamage', 'IncreasedPhysDamageLocal', 'IncreasedWeaponEleDamage',
+    'GlobalCritChance', 'GlobalCritMulti',
+    'IncreasedAccuracy', 'IncreasedColdDamage', 'IncreasedFireDamage',
+    'IncreasedLightningDamage', 'IncreasedPhysDamage', 'IncreasedWeaponEleDamage',
     'Intelligence', 'LifeGainOnHit', 'LifeGainOnKill', 'LifeLeech', 'LifeLeechCold',
     'LifeLeechFire', 'LifeLeechLightning', 'LightRadius', 'LightningResist',
-    'Mana', 'ManaLeech', 'ManaRegen', 'MaxPowerCharges', 'SocketedChaosGemLevel',
+    'Mana', 'ManaGainOnKill', 'ManaLeech', 'ManaRegen', 'MaxPowerCharges',
+    'SocketedChaosGemLevel',
     'SocketedColdGemLevel', 'SocketedFireGemLevel', 'SocketedLightningGemLevel',
     'SocketedGemLevel', 'SocketedMana', 'SocketedMeleeGemLevel', 'SpellBlock',
     'SpellCrit', 'SpellDamage', 'Strength', 'StunDuration', 'StunThreshold',
@@ -489,12 +495,12 @@ DAGGER_COLUMNS = [
     'ItemId', 'Hash', 'Corrupted', 'Sockets', 'Quality',
     'PhysDamage', 'EleDamage', 'ChaosDamage', 'AttacksPerSecond', 'CritChance',
     'ReqLevel', 'ReqStr', 'ReqDex', 'ReqInt',
-    'Accuracy', 'AddedSpellColdDamage', 'AddedSpellFireDamage',
+    'Accuracy', 'AddedPhysDamageLocal', 'AddedSpellColdDamage', 'AddedSpellFireDamage',
     'AddedSpellLightningDamage', 'BlockChance', 'BlockChanceWhileDualWielding',
     'ChanceToFlee', 'ChaosResist', 'ColdResist', 'CullingStrike', 'Dexterity',
     'FireResist', 'GlobalCritChance', 'GlobalCritMulti', 'LifeLeechCold',
-    'LifeLeechFire', 'LifeLeechLightning', 'Mana', 'ManaGainOnKill', 'ManaRegen',
-    'IncreasedAccuracy', 'IncreasedPhysDamageLocal', 'IncreasedWeaponEleDamage',
+    'LifeLeechFire', 'LifeLeechLightning', 'Mana', 'ManaGainOnKill', 'ManaLeech', 'ManaRegen',
+    'IncreasedAccuracy', 'IncreasedPhysDamage', 'IncreasedWeaponEleDamage',
     'Intelligence', 'LifeGainOnHit', 'LifeGainOnKill', 'LifeLeech', 'LightRadius',
     'LightningResist', 'SocketedChaosGemLevel', 'SocketedColdGemLevel',
     'SocketedFireGemLevel', 'SocketedLightningGemLevel', 'SocketedMeleeGemLevel',
@@ -511,7 +517,8 @@ ONE_HAND_SWORD_COLUMNS = [
     'CullingStrike', 'Dexterity', 'DodgeAttacks', 'FireResist', 'GlobalCritMulti',
     'IncreasedAccuracy', 'IncreasedPhysDamage', 'IncreasedWeaponEleDamage',
     'LifeGainOnHit', 'LifeGainOnKill', 'LifeLeech', 'LifeLeechCold', 'LifeLeechFire',
-    'LifeLeechLightning', 'LightRadius', 'ManaGainOnKill', 'ManaLeech', 'Strength',
+    'LifeLeechLightning', 'LightRadius', 'LightningResist',
+    'ManaGainOnKill', 'ManaLeech', 'Strength',
     'SocketedGemLevel', 'SocketedMeleeGemLevel', 'StunDuration', 'StunThreshold',
     'SupportedByMeleeSplash', 'SupportedByMultistrike', 'WeaponRange'
 ]
@@ -521,10 +528,12 @@ TWO_HAND_SWORD_COLUMNS = [
     'PhysDamage', 'EleDamage', 'ChaosDamage', 'AttacksPerSecond', 'CritChance',
     'ReqLevel', 'ReqStr', 'ReqDex', 'ReqInt',
     'Accuracy', 'AddedPhysDamageLocal', 'ChanceToFlee', 'ChaosResist', 'ColdResist',
-    'Dexterity', 'FireResist', 'LifeGainOnHit', 'LifeGainOnKill', 'LifeLeech',
+    'CullingStrike',
+    'Dexterity', 'FireResist', 'GlobalCritMulti', 'IncreasedAccuracy', 'IncreasedPhysDamage',
+    'IncreasedWeaponEleDamage',
+    'LifeGainOnHit', 'LifeGainOnKill', 'LifeLeech',
     'LifeLeechCold', 'LifeLeechFire', 'LifeLeechLightning', 'LightRadius',
-    'LightningResist', 'GlobalCritMulti', 'IncreasedAccuracy', 'IncreasedPhysDamage',
-    'IncreasedWeaponEleDamage', 'ManaGainOnKill', 'MaxPowerCharges', 'SocketedGemLevel',
+    'LightningResist', 'ManaLeech', 'ManaGainOnKill', 'MaxPowerCharges', 'SocketedGemLevel',
     'SocketedMeleeGemLevel', 'Strength', 'StunDuration', 'StunThreshold',
     'SupportedByAdditionalAccuracy', 'WeaponRange'
 ]

@@ -1,7 +1,7 @@
 
 CREATE TABLE IF NOT EXISTS StashContents (
-    StashId char(64) primary key,
-    ItemId char(64) not null,
+    StashId char(64) not null,
+    ItemId char(64) primary key,
     Hash uuid not null,
     League smallint not null,
     Price smallint not null,
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS StashContents (
     W smallint not null,
     H smallint not null
 );
+CREATE INDEX StashContents_StashId ON StashContents (StashId);
 
 CREATE TABLE IF NOT EXISTS Players (
     PlayerId bigint PRIMARY KEY,
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS HelmetItems (
     FireResist smallint  not null,
     GrantedSkillId smallint not null,
     GrantedSkillLevel smallint not null,
+    IncreasedAccuracy smallint not null,
     Intelligence smallint  not null,
     ItemRarity smallint not null,
     Life smallint  not null,
@@ -507,6 +509,7 @@ CREATE TABLE IF NOT EXISTS WandItems (
     GlobalCritMulti smallint not null,
     GrantedSkillId smallint not null,
     GrantedSkillLevel smallint not null,
+    IncreasedAccuracy smallint not null,
     IncreasedColdDamage smallint not null,
     IncreasedFireDamage smallint not null,
     IncreasedLightningDamage smallint not null,
@@ -522,9 +525,10 @@ CREATE TABLE IF NOT EXISTS WandItems (
     LightningResist smallint not null,
     LightRadius smallint not null,
     Mana smallint not null,
-    ManaGainOnHit smallint not null,
+    ManaGainOnKill smallint not null,
     ManaLeech smallint not null,
     ManaRegen smallint not null,
+    Pierce smallint not null,
     ProjectileSpeed smallint not null,
     SocketedGemLevel smallint not null,
     SocketedChaosGemLevel smallint not null,
@@ -569,10 +573,11 @@ CREATE TABLE IF NOT EXISTS StaffItems (
     FireResist smallint not null,
     GlobalCritChance smallint not null,
     GlobalCritMulti smallint not null,
+    IncreasedAccuracy smallint not null,
     IncreasedColdDamage smallint not null,
     IncreasedFireDamage smallint not null,
     IncreasedLightningDamage smallint not null,
-    IncreasedPhysDamageLocal smallint not null,
+    IncreasedPhysDamage smallint not null,
     IncreasedWeaponEleDamage smallint not null,
     Intelligence smallint not null,
     LifeGainOnHit smallint not null,
@@ -584,6 +589,7 @@ CREATE TABLE IF NOT EXISTS StaffItems (
     LightRadius smallint not null,
     LightningResist smallint not null,
     Mana smallint not null,
+    ManaGainOnKill smallint not null,
     ManaLeech smallint not null,
     ManaRegen smallint not null,
     MaxPowerCharges smallint not null,
@@ -623,6 +629,7 @@ CREATE TABLE IF NOT EXISTS DaggerItems (
     ReqInt smallint not null,
 
     Accuracy smallint not null,
+    AddedPhysDamageLocal smallint not null,
     AddedSpellColdDamage smallint not null,
     AddedSpellFireDamage smallint not null,
     AddedSpellLightningDamage smallint not null,
@@ -631,7 +638,7 @@ CREATE TABLE IF NOT EXISTS DaggerItems (
     ChanceToFlee smallint not null,
     ChaosResist smallint not null,
     ColdResist smallint not null,
-    CullingStrike smallint not null,
+    CullingStrike bool not null,
     Dexterity smallint not null,
     FireResist smallint not null,
     GlobalCritChance smallint not null,
@@ -641,9 +648,10 @@ CREATE TABLE IF NOT EXISTS DaggerItems (
     LifeLeechLightning smallint not null,
     Mana smallint not null,
     ManaGainOnKill smallint not null,
+    ManaLeech smallint not null,
     ManaRegen smallint not null,
     IncreasedAccuracy smallint not null,
-    IncreasedPhysDamageLocal smallint not null,
+    IncreasedPhysDamage smallint not null,
     IncreasedWeaponEleDamage smallint not null,
     Intelligence smallint not null,
     LifeGainOnHit smallint not null,
@@ -705,6 +713,7 @@ CREATE TABLE IF NOT EXISTS OneHandSwordItems (
     LifeLeechFire smallint not null,
     LifeLeechLightning smallint not null,
     LightRadius smallint not null,
+    LightningResist smallint not null,
     ManaGainOnKill smallint not null,
     ManaLeech smallint not null,
     Strength smallint not null,
@@ -740,8 +749,13 @@ CREATE TABLE IF NOT EXISTS TwoHandSwordItems (
     ChanceToFlee smallint not null,
     ChaosResist smallint not null,
     ColdResist smallint not null,
+    CullingStrike bool not null,
     Dexterity smallint not null,
     FireResist smallint not null,
+    GlobalCritMulti smallint not null,
+    IncreasedAccuracy smallint not null,
+    IncreasedPhysDamage smallint not null,
+    IncreasedWeaponEleDamage smallint not null,
     LifeGainOnHit smallint not null,
     LifeGainOnKill smallint not null,
     LifeLeech smallint not null,
@@ -750,10 +764,7 @@ CREATE TABLE IF NOT EXISTS TwoHandSwordItems (
     LifeLeechLightning smallint not null,
     LightRadius smallint not null,
     LightningResist smallint not null,
-    GlobalCritMulti smallint not null,
-    IncreasedAccuracy smallint not null,
-    IncreasedPhysDamage smallint not null,
-    IncreasedWeaponEleDamage smallint not null,
+    ManaLeech smallint not null,
     ManaGainOnKill smallint not null,
     MaxPowerCharges smallint not null,
     SocketedGemLevel smallint not null,
@@ -1014,7 +1025,7 @@ CREATE TABLE IF NOT EXISTS BowItems (
     SocketedBowGemLevel smallint not null,
     StunDuration smallint not null,
     SupportedByFork smallint not null
-)
+);
 
 CREATE TABLE IF NOT EXISTS ClawItems (
     ItemId char(64) primary key,

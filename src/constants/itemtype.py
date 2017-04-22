@@ -246,8 +246,20 @@ def get_item_type(item):
     # Ignore legacy quivers
     if item_basetype in {"Heavy Quiver", "Light Quiver", "Rugged Quiver", "Conductive Quiver", "Cured Quiver"}:
         return UNKNOWN
+    if item_basetype == 'Fishing Rod':
+        return UNKNOWN
 
     # Print warning for items we forgot
     print("WARNING: wtf is a ", item_basetype)
     return UNKNOWN
 
+
+def get_name(itemtype):
+    """Returns the name of the given itemtype."""
+    if itemtype not in ALL_TYPES.keys():
+        return 'INVALID'
+    for k, v in globals().items():
+        if v == itemtype:
+            return k
+    assert False, 'How can this be, itemtype was ' + itemtype
+    return "ERROR WTF"
