@@ -268,6 +268,38 @@ class ItemDB(object):
             ON CONFLICT (AccountName, League) DO UPDATE SET Predictions = EXCLUDED.Predictions
         """, (stash['accountName'], league_id, Json(predictions)))
 
+    def get_stats(self):
+        self.db.execute("""
+            SELECT ItemType, COUNT(*) FROM StashContents
+            GROUP BY ItemType
+        """)
+        total = self.db.fetchall()
+        total = {itemtype.get_name(k): v for k, v in total}
+
+        self.db.execute("""
+            SELECT ItemType, COUNT(*) FROM StashContents
+            WHERE SoldTime::date < date '2000-01-01'
+            GROUP BY ItemType
+        """)
+        sold = self.db.fetchall()
+        sold = {itemtype.get_name(k): v for k, v in sold}
+
+        self.db.execute("""
+            SELECT ItemType, COUNT(*) FROM StashContents
+            WHERE SoldTime::date > date '2007-01-01'
+              AND Price > 1
+              AND Currency = 4 OR Currency = 6 OR Currency >= 11
+            GROUP BY ItemType
+        """)
+        valuable_sold = self.db.fetchall()
+        valuable_sold = {itemtype.get_name(k): v for k, v in valuable_sold}
+
+        return {
+            'total': total,
+            'sold': sold,
+            'valuable_sold': valuable_sold
+        }
+
 def get_price(text):
     """
     Parses a stash tab name or item note and returns the price, or None if it contains no price.
