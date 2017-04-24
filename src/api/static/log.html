@@ -1,0 +1,25 @@
+<html>
+<head>
+<script
+  src="https://code.jquery.com/jquery-3.2.1.min.js"
+  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  crossorigin="anonymous"></script>
+<style>#log { font-family: monospace; white-space: pre; }</style>
+</head>
+<body>
+<div id="log"></div>
+<script type="text/javascript">
+var offset = 0;
+function update() {
+  jQuery.getJSON('http://poe.gg/api/v1/log/' + offset,
+    function(result) {
+      offset = result.offset;
+      $("#log").append(result.data);
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+} 
+
+setInterval(update, 5000);
+</script>
+</body>
+

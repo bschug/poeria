@@ -3,7 +3,7 @@ import sys
 import os
 from indexer.itemdb import ItemDB
 
-from flask import Flask
+from flask import Flask, url_for
 app = Flask(__name__)
 
 db_credentials = os.environ['DB_CREDENTIALS']
@@ -34,4 +34,6 @@ def print_log(offset):
 
 
 if __name__ == '__main__':
+    with app.test_request_context():
+        print(url_for('static', filename='log.html'))
     app.run(host='0.0.0.0', port=8080)
