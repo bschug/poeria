@@ -31,7 +31,7 @@ class Indexer(object):
         self.item_db.commit()
         print("Processed {} items in {:.2f} seconds".format(
             len(total_added), time.time() - start_time))
-        print("Sold: ", num_deleted)
+        print("Sold: ", total_num_deleted)
         print("Total Items: ", self.item_db.count())
 
     def get_next_stash_update(self):
