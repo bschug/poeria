@@ -278,7 +278,7 @@ class ItemDB(object):
 
         self.db.execute("""
             SELECT ItemType, COUNT(*) FROM StashContents
-            WHERE SoldTime::date < date '2000-01-01'
+            WHERE SoldTime::date > date '2000-01-01'
             GROUP BY ItemType
         """)
         sold = self.db.fetchall()
@@ -307,7 +307,7 @@ def get_price(text):
     if text is None:
         return None
 
-    match = re.match('(~b/o|~price) (\d+) ([a-z]+)', text)
+    match = re.match('(~b/o|~price) (\d+\.?\d?) ([a-z]+)', text)
     if match is None:
         return None
 
@@ -315,7 +315,7 @@ def get_price(text):
     if currency_id == currency.UNKNOWN:
         return None
 
-    value = int(match.group(2))
+    value = float(match.group(2))
     if value > 10000:
         return None
 

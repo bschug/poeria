@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS StashContents (
     ItemId char(64) primary key,
     Hash uuid not null,
     League smallint not null,
-    Price smallint not null,
+    Price real not null,
     Currency smallint not null,
     ItemType smallint not null,
     AddedTime timestamp with time zone not null,
