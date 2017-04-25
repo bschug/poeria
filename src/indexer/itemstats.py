@@ -295,14 +295,14 @@ class Affix(object):
     StunDuration = IntAffix('StunDuration', '(\d+)% increased Stun Duration on Enemies')
     StunRecovery = IntAffix('StunRecovery', '(\d+)% increased Stun and Block Recovery')
     StunThreshold = IntAffix('StunThreshold', '(\d+)% reduced Enemy Stun Threshold')
-    SupportedByAddedFireDamage = IntAffix('SupportedByAddedFireDamage', 'Socketed Gems are supported by level (\d+) Added Fire Damage')
+    SupportedByAddedFireDamage = IntAffix('SupportedByAddedFireDamage', 'Socketed Gems are Supported by level (\d+) Added Fire Damage')
     SupportedByAdditionalAccuracy = IntAffix('SupportedByAdditionalAccuracy', 'Socketed Gems are supported by level (\d+) Additional Accuracy')
     SupportedByCastOnCrit = IntAffix('SupportedByCastOnCrit', 'Socketed Gems are supported by level (\d+) Cast On Crit')
     SupportedByCastOnStun = IntAffix('SupportedByCastOnStun', 'Socketed Gems are supported by level (\d+) Cast when Stunned')
     SupportedByEleProlif = IntAffix('SupportedByEleProlif', 'Socketed Gems are Supported by level (\d+) Elemental Proliferation')
-    SupportedByFasterCasting = IntAffix('SupportedByFasterCasting', 'Socketed Gems are Supported by level (\d+) Faster Casting')
+    SupportedByFasterCasting = IntAffix('SupportedByFasterCasting', 'Socketed Gems are Supported by Level (\d+) Faster Casting')
     SupportedByFork = IntAffix('SupportedByFork', 'Socketed Gems are supported by level (\d+) Fork')
-    SupportedByIncreasedAoE = IntAffix('SupportedByIncreasedAoE', 'Socketed Gems are supported by level (\d+) Increased Area of Effect')
+    SupportedByIncreasedAoE = IntAffix('SupportedByIncreasedAoE', 'Socketed Gems are Supported by level (\d+) Increased Area of Effect')
     SupportedByIncreasedCritDamage = IntAffix('SupportedByIncreasedCritDamage', 'Socketed Gems are supported by level (\d+) Increased Critical Damage')
     SupportedByLifeLeech = IntAffix('SupportedByLifeLeech', 'Socketed Gems are supported by level (\d+) Life Leech')
     SupportedByMeleeSplash = IntAffix('SupportedByMeleeSplash', 'Socketed Gems are supported by level (\d+) Melee Splash')
@@ -1542,6 +1542,9 @@ def parse_one_hand_axe(item):
             Affix.LifeLeechLightning,
             Affix.WeaponRange,
             Affix.SupportedByMeleeSplash
+        ],
+        ignored=[
+            'Adds \d+ to \d+ Chaos Damage'
         ]
     )
     parse_explicit_mods(
