@@ -287,8 +287,8 @@ class ItemDB(object):
         self.db.execute("""
             SELECT ItemType, COUNT(*) FROM StashContents
             WHERE SoldTime::date > date '2007-01-01'
-              AND Price > 1
-              AND Currency = 4 OR Currency = 6 OR Currency >= 11
+              AND (Price > 1 AND (Currency = 4 OR Currency >= 11)
+                   OR Currency = 6)
             GROUP BY ItemType
         """)
         valuable_sold = self.db.fetchall()
