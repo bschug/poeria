@@ -267,7 +267,7 @@ def get_name(itemtype):
 
 def from_name(name):
     """Returns itemtype id for the given name."""
-    if name not in globals().keys:
+    if name not in globals().keys():
         raise KeyError('Invalid itemtype: ' + name)
     itemtype = globals()[name]
     if type(itemtype) is not int:

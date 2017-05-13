@@ -17,7 +17,7 @@ from indexer import itemdb
 
 class DataExporter(object):
     def __init__(self, db, league=league.STANDARD, flavour='Both', league_end=None,
-                 min_valuable_price=2, max_worthless_price=1, fresh_seconds=3*24*60*60):
+                 min_valuable_price=2, max_worthless_price=1, fresh_seconds=1*24*60*60):
         """
         :param db:      psycopg2 db instance
         :param league:  League ID for which to export data
@@ -72,14 +72,21 @@ class DataExporter(object):
         column_mapping = {x[2:].lower(): x[2:] for x in columns}
         items.columns = [column_mapping[x] for x in items.columns]
 
-        print("Got data from db: ", items.columns)
+        #print("Got data from db: ", items.columns)
+        print("Got", items.shape[0], "x", items.shape[1], "values from the db")
         return items
 
     def categorize(self, items):
         print("categorizing...")
         items['valuable'] = items.apply(self.is_item_valuable, axis=1)
         items['worthless'] = items.apply(self.is_item_worthless, axis=1)
+
         print("{} valuable / {} worthless".format(items.valuable.sum(), items.worthless.sum()))
+        print("{} overpriced / {} at fringe / {} too fresh".format(
+            items.apply(self.is_item_overpriced, axis=1).sum(),
+            items.apply(self.is_fringe_priced, axis=1).sum(),
+            items.apply(self.is_item_too_fresh, axis=1).sum()
+        ))
 
         # Remove all items where we can't tell if they're valuable or worthless
         items = items[items.valuable | items.worthless]
@@ -110,7 +117,7 @@ class DataExporter(object):
         fresh = (item.SeenTime - item.AddedTime).total_seconds() < self.fresh_seconds
 
         # If item was offered for a low price for more than the fresh time, assume it's worthless
-        if price < self.max_worthless_price and not fresh:
+        if price <= self.max_worthless_price and not fresh:
             return True
 
         # If item is offered for a low price but the offer is younger than a day, ignore it
@@ -119,6 +126,20 @@ class DataExporter(object):
         # because we don't know if the buyer would have also bought it at a higher price
 
         return False
+
+    def is_item_overpriced(self, item):
+        price = self.convert_to_chaos(item.Price, item.Currency)
+        sold = is_item_sold(item)
+        return price >= self.min_valuable_price and not sold
+
+    def is_fringe_priced(self, item):
+        price = self.convert_to_chaos(item.Price, item.Currency)
+        return self.max_worthless_price < price < self.min_valuable_price
+
+    def is_item_too_fresh(self, item):
+        price = self.convert_to_chaos(item.Price, item.Currency)
+        fresh = (item.SeenTime - item.AddedTime).total_seconds() < self.fresh_seconds
+        return price <= self.max_worthless_price and fresh
 
     def convert_to_chaos(self, price, currency):
         return price * self.exchange_rates[currency]
@@ -214,9 +235,12 @@ def apply_attribute_boni(items):
     Combine the implicit bonus life from strength with any existing life bonus.
     """
     print("applying attribute boni...")
-    items.Life += items.Strength / 2
-    items.Mana += items.Intelligence / 2
-    items.Accuracy += items.Dexterity * 2
+    if 'Strength' in items.columns and 'Life' in items.columns:
+        items.Life += items.Strength / 2
+    if 'Mana' in items.columns and 'Intelligence' in items.columns:
+        items.Mana += items.Intelligence / 2
+    if 'Accuracy' in items.columns and 'Dexterity' in items.columns:
+        items.Accuracy += items.Dexterity * 2
     return items
 
 
@@ -231,17 +255,17 @@ def featurize_sockets(items):
         return max(len(x) for x in sockets.split(' '))
 
     def count_off_color(sockets, str, dex, int):
-        counts = {x: len(y) for x, y in groupby(sockets) if x != ' '}
-        return counts['S'] if str > 0 else 0 + \
-               counts['D'] if dex > 0 else 0 + \
-               counts['I'] if int > 0 else 0 + \
-               counts['G']
+        counts = {x: len(list(y)) for x, y in groupby(sockets) if x != ' '}
+        return counts.get('S', 0) if str == 0 else 0 + \
+               counts.get('D', 0) if dex == 0 else 0 + \
+               counts.get('I', 0) if int == 0 else 0 + \
+               counts.get('G', 0)
 
     link_count = items.Sockets.apply(count_links)
     items['5Linked'] = link_count >= 5
     items['6Linked'] = link_count >= 6
     items['NumOffColorSockets'] = \
-        items.apply(lambda x: count_off_color(x.Sockets, x.ReqStr, x.ReqDex, x.ReqDex))
+        items.apply(lambda x: count_off_color(x.Sockets, x.ReqStr, x.ReqDex, x.ReqDex), axis=1)
 
     del items['Sockets']
     return items
