@@ -17,7 +17,7 @@ from indexer import itemdb
 
 class DataExporter(object):
     def __init__(self, db, league=league.STANDARD, flavour='Both', league_end=None,
-                 min_valuable_price=2, max_worthless_price=1, fresh_seconds=1*24*60*60):
+                 min_valuable_price=2, max_worthless_price=1, fresh_seconds=7*24*60*60):
         """
         :param db:      psycopg2 db instance
         :param league:  League ID for which to export data
@@ -114,7 +114,7 @@ class DataExporter(object):
 
     def is_item_worthless(self, item):
         price = self.convert_to_chaos(item.Price, item.Currency)
-        fresh = (item.SeenTime - item.AddedTime).total_seconds() < self.fresh_seconds
+        fresh = (datetime.now(tz=pytz.UTC) - item.AddedTime).total_seconds() < self.fresh_seconds
 
         # If item was offered for a low price for more than the fresh time, assume it's worthless
         if price <= self.max_worthless_price and not fresh:
@@ -138,7 +138,7 @@ class DataExporter(object):
 
     def is_item_too_fresh(self, item):
         price = self.convert_to_chaos(item.Price, item.Currency)
-        fresh = (item.SeenTime - item.AddedTime).total_seconds() < self.fresh_seconds
+        fresh = (datetime.now() - item.AddedTime).total_seconds() < self.fresh_seconds
         return price <= self.max_worthless_price and fresh
 
     def convert_to_chaos(self, price, currency):
