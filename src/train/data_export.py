@@ -54,7 +54,7 @@ class DataExporter(object):
         items.to_csv(filename)
 
     def get_data_from_db(self, itype):
-        tablename = itemtype.get_name(itype) + 'Items'
+        tablename = (itemtype.get_name(itype) + 'Items').replace('_', '')
         columns = ['s.Price', 's.Currency', 's.AddedTime', 's.SoldTime', 's.SeenTime'] + \
                   ['x.' + x for x in DB_COLUMNS[itype]]
         min_league = self.league + 1 if self.flavour == 'Hardcore' else self.league
@@ -138,7 +138,7 @@ class DataExporter(object):
 
     def is_item_too_fresh(self, item):
         price = self.convert_to_chaos(item.Price, item.Currency)
-        fresh = (datetime.now() - item.AddedTime).total_seconds() < self.fresh_seconds
+        fresh = (datetime.now(tz=pytz.UTC) - item.AddedTime).total_seconds() < self.fresh_seconds
         return price <= self.max_worthless_price and fresh
 
     def convert_to_chaos(self, price, currency):
@@ -312,7 +312,7 @@ def main(args):
 
     args.itemtype = args.itemtype.upper()
     if args.itemtype == 'ALL':
-        for itype in itemtype.ALL_TYPES:
+        for itype in [x for x in itemtype.ALL_TYPES if x != itemtype.SHIELD]:
             outfile = os.path.join(args.outdir, itemtype.get_name(itype) + '.csv')
             exporter.export(itype, outfile)
     else:
