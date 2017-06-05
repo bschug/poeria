@@ -312,9 +312,17 @@ def main(args):
 
     args.itemtype = args.itemtype.upper()
     if args.itemtype == 'ALL':
-        for itype in [x for x in itemtype.ALL_TYPES if x != itemtype.SHIELD]:
+        failed = []
+        for itype in [x for x in itemtype.ALL_TYPES]:
             outfile = os.path.join(args.outdir, itemtype.get_name(itype) + '.csv')
-            exporter.export(itype, outfile)
+            try:
+                exporter.export(itype, outfile)
+            except Exception as ex:
+                failed.append(itype)
+        if len(failed) > 0:
+            failed = [itemtype.get_name(x) for x in failed]
+            print("Some Item Types could not be exported:", ", ".join(failed))
+
     else:
         itype = itemtype.from_name(args.itemtype)
         outfile = os.path.join(args.outdir, itemtype.get_name(itype) + '.csv')
