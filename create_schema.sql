@@ -239,6 +239,11 @@ CREATE TABLE IF NOT EXISTS ShieldItems (
     Corrupted bool not null,
     Quality smallint not null,
 
+    ReqLevel smallint not null,
+    ReqStr smallint not null,
+    ReqDex smallint  not null,
+    ReqInt smallint  not null,
+
     Armour smallint not null,
     Evasion smallint not null,
     EnergyShield smallint not null,
@@ -250,10 +255,6 @@ CREATE TABLE IF NOT EXISTS ShieldItems (
     AddedEnergyShield smallint not null,
     IncreasedEnergyShield smallint not null,
 
-    ReqLevel smallint not null,
-    ReqStr smallint not null,
-    ReqDex smallint  not null,
-    ReqInt smallint  not null,
     Life smallint  not null,
     Mana smallint  not null,
     Strength smallint  not null,

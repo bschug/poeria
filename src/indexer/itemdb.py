@@ -46,6 +46,7 @@ class ItemDB(object):
         self.add_gloves_items(items_by_type[itemtype.GLOVES])
         self.add_boots_items(items_by_type[itemtype.BOOTS])
         self.add_belt_items(items_by_type[itemtype.BELT])
+        self.add_shield_items(items_by_type[itemtype.SHIELD])
         self.add_ring_items(items_by_type[itemtype.RING])
         self.add_amulet_items(items_by_type[itemtype.AMULET])
         self.add_wand_items(items_by_type[itemtype.WAND])
@@ -192,6 +193,9 @@ class ItemDB(object):
 
     def add_quiver_items(self, items):
         self.store_item_values('QuiverItems', QUIVER_COLUMNS, items)
+
+    def add_shield_items(self, items):
+        self.store_item_values('ShieldItems', SHIELD_COLUMNS, items)
 
     def add_ring_items(self, items):
         self.store_item_values('RingItems', RING_COLUMNS, items)
@@ -413,6 +417,23 @@ GLOVES_COLUMNS = [
     'SocketedGemLevel', 'SocketedVaalGemLevel', 'SpellDamage', 'Strength',
     'StunRecovery', 'SupportedByCastOnCrit', 'SupportedByCastOnStun',
     'TempChainsOnHit', 'VulnerabilityOnHit'
+]
+
+SHIELD_COLUMNS = [
+    'ItemId', 'Hash', 'Sockets', 'Corrupted', 'Quality',
+    'ReqLevel', 'ReqStr', 'ReqDex', 'ReqInt',
+    'Armour', 'Evasion', 'EnergyShield',
+    'AddedArmour', 'IncreasedArmour', 'AddedEvasion', 'IncreasedEvasion',
+    'AddedEnergyShield', 'IncreasedEnergyShield',
+    'Life', 'Mana', 'Strength', 'Dexterity', 'Intelligence',
+    'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist',
+    'BlockChance', 'PhysReflect', 'StunRecovery',
+    'SocketedMeleeGemLevel', 'SocketedChaosGemLevel', 'SocketedFireGemLevel',
+    'SocketedColdGemLevel', 'SocketedLightningGemLevel',
+    'LifeRegen', 'ManaRegen', 'IncreasedSpellDamage', 'SpellCritChance',
+    'AvoidIgnite', 'GrantedSkillId', 'GrantedSkillLevel',
+    'SocketedGemLevel', 'SocketedVaalGemLevel',
+    'CastSpeed', 'ManaShield', 'PhysDamageReduction', 'SpellBlock'
 ]
 
 BOOTS_COLUMNS = [
