@@ -1,2 +1,8 @@
 blessings
 psycopg2
+requests
+python-dateutil
+pytz
+numpy
+pandas
+
