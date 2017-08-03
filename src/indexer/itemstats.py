@@ -1,8 +1,9 @@
 import json
 import re
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 from constants import itemtype
+from util.collections import CaseInsensitiveCounter
 
 
 class AffixParse(object):
@@ -390,7 +391,7 @@ def parse_mods(mods, item_type, mod_type, stats, affix_parsers, ignored=None, ba
 
 
 def parse_ring(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['DoubledInBreach'] = False
     parse_corrupted(item, stats)
     parse_sockets(item, stats)
@@ -489,7 +490,7 @@ def parse_ring(item):
 
 
 def parse_amulet(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_corrupted(item, stats)
     parse_requirements(item, stats, level_only=True)
     parse_implicit_mods(
@@ -589,7 +590,7 @@ def parse_amulet(item):
 
 
 def parse_body(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CannotBeKnockedBack'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -668,7 +669,7 @@ def parse_helmet(item):
     if is_enchanted(item):
         raise ItemBannedException('Item is enchanted', item['enchantMods'][0])
 
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['EnemiesCannotLeech'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -745,7 +746,7 @@ def parse_gloves(item):
     if is_enchanted(item):
         raise ItemBannedException('Item is enchanted', item['enchantMods'][0])
 
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_armour_properties(item, stats)
@@ -832,7 +833,7 @@ def parse_boots(item):
     if is_enchanted(item):
         raise ItemBannedException('Item is enchanted', item['enchantMods'][0])
 
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CannotBeKnockedBack'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -904,7 +905,7 @@ def parse_boots(item):
 
 
 def parse_belt(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_corrupted(item, stats)
     parse_requirements(item, stats, level_only=True)
     parse_implicit_mods(
@@ -968,7 +969,7 @@ def parse_belt(item):
 
 
 def parse_quiver(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['AddedArrow'] = False
     parse_corrupted(item, stats)
     parse_requirements(item, stats, level_only=True)
@@ -1033,7 +1034,7 @@ def parse_quiver(item):
 
 
 def parse_shield(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_shield_properties(item, stats)
@@ -1109,7 +1110,7 @@ def parse_shield(item):
     return stats
 
 def parse_wand(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1194,7 +1195,7 @@ def parse_wand(item):
 
 
 def parse_staff(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1280,7 +1281,7 @@ def parse_staff(item):
 
 
 def parse_dagger(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1367,7 +1368,7 @@ def parse_dagger(item):
 
 
 def parse_one_hand_sword(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1448,7 +1449,7 @@ def parse_one_hand_sword(item):
 
 
 def parse_two_hand_sword(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1522,7 +1523,7 @@ def parse_two_hand_sword(item):
 
 
 def parse_one_hand_axe(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1591,7 +1592,7 @@ def parse_one_hand_axe(item):
 
 
 def parse_two_hand_axe(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1662,7 +1663,7 @@ def parse_two_hand_axe(item):
 
 
 def parse_one_hand_mace(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1729,7 +1730,7 @@ def parse_one_hand_mace(item):
 
 
 def parse_two_hand_mace(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
@@ -1797,7 +1798,7 @@ def parse_two_hand_mace(item):
 
 
 def parse_bow(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     stats['AddedArrow'] = False
     parse_sockets(item, stats)
@@ -1875,7 +1876,7 @@ def parse_bow(item):
 
 
 def parse_claw(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     stats['CullingStrike'] = False
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
@@ -1950,7 +1951,7 @@ def parse_claw(item):
 
 
 def parse_sceptre(item):
-    stats = Counter()
+    stats = CaseInsensitiveCounter()
     parse_sockets(item, stats)
     parse_corrupted(item, stats)
     parse_weapon_properties(item, stats)
