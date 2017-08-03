@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS ShieldItems (
     Armour smallint not null,
     Evasion smallint not null,
     EnergyShield smallint not null,
+    Block smallint not null,
 
     AddedArmour smallint not null,
     IncreasedArmour smallint not null,

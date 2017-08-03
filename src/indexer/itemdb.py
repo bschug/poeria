@@ -422,7 +422,7 @@ GLOVES_COLUMNS = [
 SHIELD_COLUMNS = [
     'ItemId', 'Hash', 'Sockets', 'Corrupted', 'Quality',
     'ReqLevel', 'ReqStr', 'ReqDex', 'ReqInt',
-    'Armour', 'Evasion', 'EnergyShield',
+    'Armour', 'Evasion', 'EnergyShield', 'Block',
     'AddedArmour', 'IncreasedArmour', 'AddedEvasion', 'IncreasedEvasion',
     'AddedEnergyShield', 'IncreasedEnergyShield',
     'Life', 'Mana', 'Strength', 'Dexterity', 'Intelligence',
