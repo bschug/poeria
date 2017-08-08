@@ -240,7 +240,7 @@ class Affix(object):
     IncreasedLifeRegen = FloatAffix('IncreasedLifeRegen', '(\d+(\.\d+)?)% of Life Regenerated per second', 10)
     IncreasedLightningDamage = IntAffix('IncreasedLightningDamage', '(\d+)% increased Lightning Damage')
     IncreasedPhysDamage = IntAffix('IncreasedPhysDamage', '(\d+)% increased Physical Damage')
-    IncreasedWeaponEleDamage = IntAffix('IncreasedWeaponEleDamage', '(\d+)% increased Elemental Damage with Weapons')
+    IncreasedWeaponEleDamage = IntAffix('IncreasedWeaponEleDamage', '(\d+)% increased Elemental Damage with Attack Skills')
     Intelligence = IntAffix('Intelligence', '\+(\d+) to Intelligence')
     ItemRarity = IntAffix('ItemRarity', '(\d+)% increased Rarity of Items found')
     Life = IntAffix('Life', '\+(\d+) to maximum Life')
