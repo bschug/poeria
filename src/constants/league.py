@@ -7,6 +7,8 @@ BREACH = 3
 BREACH_HC = 4
 LEGACY = 5
 LEGACY_HC = 6
+HARBINGER = 7
+HARBINGER_HC = 8
 
 ALL_SOFTCORE_LEAGUES = [STANDARD, BREACH, LEGACY]
 
@@ -16,7 +18,9 @@ LEAGUE_ID = {
     'Breach': BREACH,
     'Hardcore Breach': BREACH_HC,
     'Legacy': LEGACY,
-    'Hardcore Legacy': LEGACY_HC
+    'Hardcore Legacy': LEGACY_HC,
+    'Harbinger': HARBINGER,
+    'Hardcore Harbinger': HARBINGER_HC,
 }
 
 
