@@ -23,7 +23,7 @@ LEAGUE_ID = {
 def get_id(league_name):
     league_id = LEAGUE_ID.get(league_name, UNKNOWN)
     if league_id == UNKNOWN:
-        print(Terminal().bold_red("Unknown League: ", league_name))
+        print(Terminal().bold_red("Unknown League: {}".format(league_name)))
     return league_id
 
 
