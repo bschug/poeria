@@ -162,8 +162,8 @@ class ItemDB(object):
         # Ensure all stats on the item have a corresponding column in the db
         for item in items:
             for stat in item['stats'].keys():
-                assert stat in columns, '{} table has no column for {} (value: {})\n{}'.format(
-                    table, stat, item['stats'][stat], item)
+                assert stat in columns, '{} table has no column for {} (value: {})\ncolumns: {}\n{}'.format(
+                    table, stat, item['stats'][stat], ', '.join(columns), item)
 
         # Remove all items that have changed
         for item in items:
@@ -190,7 +190,7 @@ class ItemDB(object):
                            AND table_name = %s
                         """,
                         (tablename.lower(),))
-        self.table_columns[tablename] = [x[0] for x in self.db.fetchone()]
+        self.table_columns[tablename] = [x[0] for x in self.db.fetchall()]
         assert self.table_columns[tablename] is not None, "Failed to fetch columns for {}".format(tablename)
         return self.table_columns[tablename]
 
